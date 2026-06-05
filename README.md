@@ -2,6 +2,18 @@
 
 Episode Radar for your Sonarr + Plex setup. Shows recent and upcoming episodes with download status, optionally confirmed against your Plex library.
 
+![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Sonarr](https://img.shields.io/badge/Sonarr-2596be?style=for-the-badge)
+![Plex](https://img.shields.io/badge/Plex-E5A00D?style=for-the-badge&logo=plex&logoColor=black)
+![PM2](https://img.shields.io/badge/PM2-2B037A?style=for-the-badge)
+![Cloudflare Tunnel](https://img.shields.io/badge/Cloudflare_Tunnel-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
+
+## Screenshot
+
+![Release Radar mobile dashboard](docs/assets/release-radar-mobile.png)
+
 ## Project Info
 
 | Item | Details |
