@@ -14,11 +14,27 @@
 
 ## Current Status
 
-Foundation created. App implementation pending.
+App foundation complete. Next.js 15.5.19 TypeScript app initialized and building cleanly.
+
+## Stack
+
+- Framework: Next.js 15.5.19 (App Router, TypeScript)
+- Node: 20.x
+- Port: 3033
+
+## Key Routes
+
+- `/` — Dashboard / landing page
+- `/api/health` — Health check endpoint (JSON)
+
+## Checks
+
+- Build: passing
+- Type check: passing
+- Lint: passing
 
 ## Next Steps
 
-1. Initialize app framework.
-2. Build and test locally.
-3. Configure PM2 after the app builds.
-4. Configure Nginx/Cloudflare when ready.
+1. Configure PM2 and start the process.
+2. Implement core features.
+3. Configure Nginx/Cloudflare when ready.
