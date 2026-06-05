@@ -5,7 +5,7 @@
 - Project Name: release
 - Folder: /var/www/release
 - Repo: dariohudon/Release
-- Branch: main
+- Branch: milestone-01-sprint-01-sonarr-episode-radar
 - Domain: release.brightening.ca
 - Port: 3033
 - PM2 Process: release
@@ -14,18 +14,23 @@
 
 ## Current Status
 
-App foundation complete. Next.js 15.5.19 TypeScript app initialized and building cleanly.
+Milestone 01 Sprint 01 complete. Release Radar is live and showing real Sonarr episode data.
 
 ## Stack
 
 - Framework: Next.js 15.5.19 (App Router, TypeScript)
 - Node: 20.x
 - Port: 3033
+- Data: Sonarr API v3 (calendar endpoint)
 
 ## Key Routes
 
-- `/` — Dashboard / landing page
-- `/api/health` — Health check endpoint (JSON)
+- `/` — Release Radar — Episode cards (past 7 days / next 7 days)
+- `/api/health` — Health check with Sonarr status
+
+## Integrations
+
+- Sonarr: configured, reachable, v4.0.17.2952
 
 ## Checks
 
@@ -35,6 +40,4 @@ App foundation complete. Next.js 15.5.19 TypeScript app initialized and building
 
 ## Next Steps
 
-1. Configure PM2 and start the process.
-2. Implement core features.
-3. Configure Nginx/Cloudflare when ready.
+1. Sprint 02 — TBD (Plex, notifications, or additional features)
