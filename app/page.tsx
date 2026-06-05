@@ -183,9 +183,21 @@ function EpisodeCard({ ep }: { ep: SonarrEpisode }) {
 
 // ── Show card ─────────────────────────────────────────────────────────────────
 
+function showStatusLine(show: SonarrShow): { text: string; muted: boolean } {
+  if (show.status === "ended") {
+    return { text: "Ended", muted: true };
+  }
+  if (show.status === "continuing") {
+    if (show.nextAiring) {
+      return { text: `Continuing · Next: ${formatDateShort(show.nextAiring)}`, muted: false };
+    }
+    return { text: "Continuing · No next release date yet", muted: true };
+  }
+  return { text: show.status, muted: true };
+}
+
 function ShowCard({ show }: { show: SonarrShow }) {
-  const statusLabel =
-    show.status === "ended" ? "Ended" : show.status === "continuing" ? "Continuing" : show.status;
+  const { text: statusText, muted } = showStatusLine(show);
 
   return (
     <div
@@ -217,13 +229,9 @@ function ShowCard({ show }: { show: SonarrShow }) {
           {show.title}
         </div>
 
-        {show.nextAiring ? (
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
-            Next: {formatDateShort(show.nextAiring)}
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: "#9ca3af" }}>{statusLabel}</div>
-        )}
+        <div style={{ fontSize: 12, color: muted ? "#9ca3af" : "#6b7280" }}>
+          {statusText}
+        </div>
 
         {show.network && (
           <div style={{ fontSize: 11, color: "#d1d5db", marginTop: 2 }}>{show.network}</div>
@@ -304,7 +312,10 @@ export default async function Home() {
     calendarResult.status === "rejected" ? classifyError(calendarResult.reason) : null;
 
   const episodes = enrichWithPlex(rawEpisodes, plexLookup);
-  const past = episodes.filter((e) => e.status !== "upcoming");
+  // Recent: most recently aired first; upcoming: soonest first (calendar already asc)
+  const past = episodes
+    .filter((e) => e.status !== "upcoming")
+    .sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
   const upcoming = episodes.filter((e) => e.status === "upcoming");
 
   const plexActive = isPlexConfigured();

@@ -197,7 +197,12 @@ export async function fetchSeries(): Promise<SonarrShow[]> {
   return data
     .filter((s) => s.monitored)
     .map(normalizeSeries)
-    .sort((a, b) => a.title.localeCompare(b.title));
+    .sort((a, b) => {
+      const aMs = a.nextAiring ? new Date(a.nextAiring).getTime() : Infinity;
+      const bMs = b.nextAiring ? new Date(b.nextAiring).getTime() : Infinity;
+      if (aMs !== bMs) return aMs - bMs;           // nearest next airing first
+      return a.title.localeCompare(b.title);       // then alphabetical
+    });
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
