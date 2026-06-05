@@ -5,7 +5,7 @@
 - Project Name: release
 - Folder: /var/www/release
 - Repo: dariohudon/Release
-- Branch: milestone-01-sprint-01-sonarr-episode-radar
+- Branch: milestone-01-sprint-02-monitored-shows-and-poster-cards
 - Domain: release.brightening.ca
 - Port: 3033
 - PM2 Process: release
@@ -14,23 +14,23 @@
 
 ## Current Status
 
-Milestone 01 Sprint 01 complete. Release Radar is live and showing real Sonarr episode data.
+Milestone 01 Sprint 02 complete. Episode cards show TheTVDB poster artwork. All 11 monitored Sonarr shows listed in a dedicated section.
 
 ## Stack
 
 - Framework: Next.js 15.5.19 (App Router, TypeScript)
 - Node: 20.x
 - Port: 3033
-- Data: Sonarr API v3 (calendar endpoint)
+- Data: Sonarr API v3 (calendar + series endpoints)
 
 ## Key Routes
 
-- `/` — Release Radar — Episode cards (past 7 days / next 7 days)
+- `/` — Release Radar — Episode cards with posters (Recent/Upcoming) + Monitored Shows section
 - `/api/health` — Health check with Sonarr status
 
 ## Integrations
 
-- Sonarr: configured, reachable, v4.0.17.2952
+- Sonarr: configured, reachable, v4.0.17.2952 — 11 monitored shows
 
 ## Checks
 
@@ -40,4 +40,4 @@ Milestone 01 Sprint 01 complete. Release Radar is live and showing real Sonarr e
 
 ## Next Steps
 
-1. Sprint 02 — TBD (Plex, notifications, or additional features)
+1. Sprint 03 — TBD
