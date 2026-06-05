@@ -1,4 +1,11 @@
-export type EpisodeStatus = "upcoming" | "downloaded" | "missing" | "released" | "downloading";
+export type EpisodeStatus =
+  | "upcoming"
+  | "downloaded"      // hasFile=true, Plex not checked
+  | "in_plex"         // hasFile=true + confirmed in Plex
+  | "waiting_plex"    // hasFile=true + NOT yet visible in Plex
+  | "missing"
+  | "released"
+  | "downloading";
 
 // ── Shared ────────────────────────────────────────────────────────────────────
 
@@ -41,6 +48,9 @@ export interface SonarrEpisode {
   monitored: boolean;
   status: EpisodeStatus;
   posterUrl: string | null;
+  // Plex enrichment (null = not yet checked)
+  inPlex: boolean | null;
+  plexAddedAt?: string;
 }
 
 interface SonarrRawEpisode {
@@ -87,6 +97,7 @@ function normalizeEpisode(raw: SonarrRawEpisode): SonarrEpisode {
     monitored: raw.monitored,
     status: deriveStatus(releaseDate, raw.hasFile),
     posterUrl: posterFromImages(raw.series?.images),
+    inPlex: null,
   };
 }
 

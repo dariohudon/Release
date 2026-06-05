@@ -5,17 +5,20 @@ import {
   SonarrShow,
   EpisodeStatus,
 } from "@/lib/sonarr";
+import { buildPlexLookup, enrichWithPlex, isPlexConfigured } from "@/lib/plex";
 
 export const dynamic = "force-dynamic";
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS: Record<EpisodeStatus, { label: string; bg: string; color: string; text: string }> = {
-  upcoming:    { label: "Upcoming",    bg: "#dbeafe", color: "#1e40af", text: "Scheduled — not aired yet" },
-  downloaded:  { label: "Downloaded",  bg: "#dcfce7", color: "#166534", text: "File available" },
-  missing:     { label: "Missing",     bg: "#fee2e2", color: "#991b1b", text: "Not downloaded yet" },
-  released:    { label: "Released",    bg: "#f3f4f6", color: "#374151", text: "Released" },
-  downloading: { label: "Downloading", bg: "#fef3c7", color: "#92400e", text: "Downloading…" },
+  upcoming:      { label: "Upcoming",              bg: "#dbeafe", color: "#1e40af", text: "Scheduled — not aired yet" },
+  downloaded:    { label: "Downloaded",            bg: "#dcfce7", color: "#166534", text: "File available" },
+  in_plex:       { label: "Downloaded in Plex",   bg: "#dcfce7", color: "#14532d", text: "Available to watch" },
+  waiting_plex:  { label: "Waiting for Plex",     bg: "#fef9c3", color: "#713f12", text: "Downloaded, waiting for Plex" },
+  missing:       { label: "Missing",              bg: "#fee2e2", color: "#991b1b", text: "Not downloaded yet" },
+  released:      { label: "Released",             bg: "#f3f4f6", color: "#374151", text: "Released" },
+  downloading:   { label: "Downloading",          bg: "#fef3c7", color: "#92400e", text: "Downloading…" },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -116,6 +119,7 @@ function Badge({ status }: { status: EpisodeStatus }) {
         color: s.color,
         letterSpacing: "0.04em",
         textTransform: "uppercase",
+        whiteSpace: "nowrap",
       }}
     >
       {s.label}
@@ -227,13 +231,7 @@ function ShowCard({ show }: { show: SonarrShow }) {
       </div>
 
       <div style={{ flexShrink: 0, textAlign: "right" }}>
-        <span
-          style={{
-            fontSize: 11,
-            color: "#9ca3af",
-            display: "block",
-          }}
-        >
+        <span style={{ fontSize: 11, color: "#9ca3af" }}>
           {show.seasonCount > 0 ? `${show.seasonCount}S` : ""}
         </span>
       </div>
@@ -293,18 +291,24 @@ function classifyError(err: unknown): FetchError {
 }
 
 export default async function Home() {
-  const [calendarResult, seriesResult] = await Promise.allSettled([
+  const [calendarResult, seriesResult, plexLookupResult] = await Promise.allSettled([
     fetchCalendar(),
     fetchSeries(),
+    buildPlexLookup(),
   ]);
 
-  const episodes = calendarResult.status === "fulfilled" ? calendarResult.value : [];
+  const rawEpisodes = calendarResult.status === "fulfilled" ? calendarResult.value : [];
   const shows = seriesResult.status === "fulfilled" ? seriesResult.value : [];
+  const plexLookup = plexLookupResult.status === "fulfilled" ? plexLookupResult.value : null;
   const fetchError: FetchError | null =
     calendarResult.status === "rejected" ? classifyError(calendarResult.reason) : null;
 
+  const episodes = enrichWithPlex(rawEpisodes, plexLookup);
   const past = episodes.filter((e) => e.status !== "upcoming");
   const upcoming = episodes.filter((e) => e.status === "upcoming");
+
+  const plexActive = isPlexConfigured();
+  const plexWorking = plexLookup !== null;
 
   return (
     <main style={{ maxWidth: 600, margin: "0 auto", padding: "28px 16px 48px" }}>
@@ -314,9 +318,27 @@ export default async function Home() {
         <h1 style={{ margin: "0 0 4px", fontSize: 26, fontWeight: 800, color: "#111827" }}>
           Release Radar
         </h1>
-        <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>
-          Episodes from the past 7 days and next 7 days
-        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <p style={{ margin: 0, fontSize: 13, color: "#9ca3af" }}>
+            Episodes from the past 7 days and next 7 days
+          </p>
+          {plexActive && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: plexWorking ? "#166534" : "#9ca3af",
+                background: plexWorking ? "#dcfce7" : "#f3f4f6",
+                padding: "2px 7px",
+                borderRadius: 99,
+              }}
+            >
+              {plexWorking ? "Plex" : "Plex offline"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Calendar error states */}
