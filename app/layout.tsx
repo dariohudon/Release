@@ -1,8 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Release Radar",
-  description: "Episode radar — release.brightening.ca",
+  title: "AI Release Radar",
+  description:
+    "Frontier and open-weights AI model releases plus top industry stories — release.brightening.ca",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#f6f5f2",
 };
 
 export default function RootLayout({
@@ -12,9 +20,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "system-ui, -apple-system, sans-serif", background: "#f9fafb", color: "#111827" }}>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
