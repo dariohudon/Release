@@ -222,3 +222,58 @@
   .mr-verdict{font-size:9px;padding:2px 6px;}
   .mr-labhero{padding-right:14px;}
 }
+
+/* ── Filters button ──────────────────────────────────────────────────────── */
+.mr-filterbtn{display:inline-flex;align-items:center;gap:7px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted);
+  padding:9px 14px;border-radius:9px;cursor:pointer;transition:.15s;flex:1;justify-content:center;}
+.mr-filterbtn:hover{color:var(--ink);border-color:var(--dim);}
+.mr-filterbtn.active{color:var(--good);border-color:rgba(94,234,212,.45);background:rgba(94,234,212,.07);}
+.mr-filterbtn i{font-style:normal;font-weight:600;}
+
+/* ── Filter sheet (bottom sheet on mobile, panel on desktop) ─────────────── */
+.mr-sheetwrap{position:fixed;inset:0;z-index:60;background:rgba(7,11,22,.62);
+  backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;
+  animation:mrfade .18s ease;}
+@keyframes mrfade{from{opacity:0}to{opacity:1}}
+.mr-sheet{background:var(--raised);border:1px solid var(--line);border-bottom:none;
+  width:100%;max-height:84dvh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;
+  outline:none;animation:mrsheetup .22s ease;
+  padding-bottom:env(safe-area-inset-bottom);}
+@keyframes mrsheetup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+.mr-sheethandle{width:38px;height:4px;border-radius:2px;background:var(--line);margin:10px auto 2px;flex:0 0 auto;}
+.mr-sheethead{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 18px 12px;border-bottom:1px solid var(--line);flex:0 0 auto;}
+.mr-sheettitle{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;margin:0;letter-spacing:-.01em;}
+.mr-sheetclose{display:flex;align-items:center;justify-content:center;width:30px;height:30px;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--muted);cursor:pointer;transition:.15s;}
+.mr-sheetclose:hover{color:var(--ink);border-color:var(--dim);}
+.mr-sheetbody{overflow-y:auto;padding:6px 18px 10px;flex:1 1 auto;-webkit-overflow-scrolling:touch;}
+.mr-sheetsec{margin:16px 0 0;}
+.mr-sheetsectitle{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);margin-bottom:9px;}
+.mr-sheetchips{display:flex;flex-wrap:wrap;gap:7px;}
+.mr-sheetchips .mr-chip{padding:8px 13px;font-size:12px;display:inline-flex;align-items:center;gap:7px;}
+.mr-labdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:0 0 auto;}
+.mr-sheetseg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;}
+.mr-sheetseg button{flex:1;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;
+  background:var(--panel);border:none;color:var(--muted);padding:10px 6px;cursor:pointer;transition:.15s;}
+.mr-sheetseg button+button{border-left:1px solid var(--line);}
+.mr-sheetseg button.on{background:var(--ink);color:var(--bg);font-weight:600;}
+.mr-sheetfoot{display:flex;gap:10px;padding:14px 18px 16px;border-top:1px solid var(--line);flex:0 0 auto;}
+.mr-sheetclear{flex:0 0 auto;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);
+  background:none;border:1px solid var(--line);padding:11px 16px;border-radius:9px;cursor:pointer;transition:.15s;}
+.mr-sheetclear:hover{color:var(--ink);border-color:var(--dim);}
+.mr-sheetapply{flex:1;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;
+  background:var(--good);color:var(--bg);border:none;padding:11px 16px;border-radius:9px;cursor:pointer;transition:.15s;}
+.mr-sheetapply:hover{filter:brightness(1.1);}
+
+@media(min-width:621px){
+  .mr-sheetwrap{align-items:center;padding:24px;}
+  .mr-sheet{max-width:520px;border-radius:16px;border-bottom:1px solid var(--line);
+    max-height:80vh;animation:mrsheetin .18s ease;}
+  @keyframes mrsheetin{from{transform:scale(.98);opacity:.6}to{transform:none;opacity:1}}
+  .mr-sheethandle{display:none;}
+  .mr-filterbtn{flex:0 0 auto;}
+}

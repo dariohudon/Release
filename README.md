@@ -48,8 +48,9 @@ specs, strengths vs watch-outs, pricing, and community sentiment.
   every card drawer.
 - **Sections**: Just shipped / Live now / On the horizon (rumored items are
   honestly labelled as estimates).
-- **Filtering**: text search, lab dropdown, type chips, verdict filter, sort
-  by intelligence / newest / cheapest (price sort understands "~3" etc.).
+- **Filtering**: triage buttons + search stay on the page; lab, sort, model
+  type, and best-for live in a Filters bottom sheet (modal on desktop) with
+  an active-count badge, Apply / Clear all, Escape + backdrop close.
 - **Persistence**: last-used filters + view are kept in localStorage.
 - **Styling**: design tokens as CSS custom properties in `app/radar.css`
   (dark navy palette, per-lab color rails). Space Grotesk / Inter /

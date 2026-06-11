@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import {
   LABS, TYPES, MODELS, STATUS_META, JOBS, VERDICT_META,
   Model, ModelStatus, Verdict, priceNum, releasedDate,
@@ -9,6 +9,7 @@ import {
 import { ModelCard } from "./ModelCard";
 import Timeline from "./Timeline";
 import MapView from "./MapView";
+import FilterSheet, { SecondaryFilters, DEFAULT_FILTERS, countActiveFilters } from "./FilterSheet";
 import "./radar.css";
 
 /* ──────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ export default function ModelRadar() {
   const [sortBy, setSortBy] = useState("index");
   const [hydrated, setHydrated] = useState(false);
   const [sinceIds, setSinceIds] = useState<Set<string>>(new Set());
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     const saved = loadPersisted();
@@ -118,6 +120,7 @@ export default function ModelRadar() {
     setVerdictFilter("all");
     setJobFilter(null);
     setQuery("");
+    setSheetOpen(false);
     setOpenId(id);
     requestAnimationFrame(() => {
       document.getElementById(`model-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -164,6 +167,15 @@ export default function ModelRadar() {
 
   const total = filtered.length;
 
+  const secondary: SecondaryFilters = { labFilter, typeFilter, sortBy, jobFilter };
+  const activeFilterCount = countActiveFilters(secondary);
+  const applyFilters = (f: SecondaryFilters) => {
+    setLabFilter(f.labFilter);
+    setTypeFilter(f.typeFilter);
+    setSortBy(f.sortBy);
+    setJobFilter(f.jobFilter);
+  };
+
   return (
     <div className="mr-root">
       <div className="mr-wrap">
@@ -201,35 +213,19 @@ export default function ModelRadar() {
             <Search size={15} color="#5C668A" />
             <input placeholder="Search by need (coding, creative, cheap, offline…)" value={query} onChange={(e) => { setQuery(e.target.value); setJobFilter(null); }} />
           </div>
-          <select className="mr-select" value={labFilter} onChange={(e) => { setLabFilter(e.target.value); setJobFilter(null); }}>
-            <option value="all">all labs</option>
-            {Object.entries(LABS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-          </select>
-          <select className="mr-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="index">sort: intelligence</option>
-            <option value="newest">sort: newest</option>
-            <option value="price">sort: cheapest</option>
-          </select>
-        </div>
-
-        <div className="mr-labrow">
-          {TYPES.map((t) => (
-            <button key={t.key} className={`mr-chip ${typeFilter === t.key && !jobFilter ? "on" : ""}`} onClick={() => { setTypeFilter(t.key); setJobFilter(null); }}>{t.label}</button>
-          ))}
-        </div>
-
-        {/* For-the-job picker */}
-        <div className="mr-jobrow">
-          <span className="mr-joblabel">for:</span>
-          {JOBS.map((j) => (
-            <button
-              key={j.key}
-              className={`mr-chip mr-jobchip ${jobFilter === j.key ? "on" : ""}`}
-              onClick={() => setJobFilter(jobFilter === j.key ? null : j.key)}
-            >
-              {j.label}
-            </button>
-          ))}
+          <button
+            className={`mr-filterbtn ${activeFilterCount > 0 ? "active" : ""}`}
+            onClick={() => setSheetOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+          >
+            <SlidersHorizontal size={13} />
+            Filters{activeFilterCount > 0 && <i>· {activeFilterCount}</i>}
+          </button>
+          <div className="mr-viewtoggle" role="tablist" aria-label="View">
+            <button role="tab" aria-selected={view === "list"} className={view === "list" ? "on" : ""} onClick={() => setView("list")}>list</button>
+            <button role="tab" aria-selected={view === "map"} className={view === "map" ? "on" : ""} onClick={() => setView("map")}>map</button>
+          </div>
         </div>
 
         <div className="mr-countrow">
@@ -238,10 +234,6 @@ export default function ModelRadar() {
               ? <>top pick{activeJob.picks.length === 1 ? "" : "s"} for <b>{activeJob.label}</b> — best first</>
               : <>{total} model{total === 1 ? "" : "s"} shown · seed data verified for June 2026</>}
           </span>
-          <div className="mr-viewtoggle" role="tablist" aria-label="View">
-            <button role="tab" aria-selected={view === "list"} className={view === "list" ? "on" : ""} onClick={() => setView("list")}>list</button>
-            <button role="tab" aria-selected={view === "map"} className={view === "map" ? "on" : ""} onClick={() => setView("map")}>map</button>
-          </div>
         </div>
 
         {view === "map" ? (
@@ -274,6 +266,8 @@ export default function ModelRadar() {
           Built for Dario · Octopus &amp; Son.
         </div>
       </div>
+
+      <FilterSheet open={sheetOpen} current={secondary} onApply={applyFilters} onClose={() => setSheetOpen(false)} />
     </div>
   );
 }
