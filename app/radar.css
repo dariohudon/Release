@@ -24,23 +24,18 @@
 .mr-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:34px;line-height:1.04;letter-spacing:-.02em;margin:0 0 8px;}
 .mr-sub{color:var(--muted);font-size:14px;max-width:580px;margin:0 0 22px;line-height:1.5;}
 
-.mr-here{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
-  background:linear-gradient(90deg, rgba(217,138,78,.14), rgba(217,138,78,.02));
-  border:1px solid rgba(217,138,78,.35);border-radius:12px;padding:13px 16px;margin-bottom:24px;}
-.mr-here b{color:#F0C39A;}
-.mr-herek{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#D98A4E;}
-.mr-heretxt{font-size:13px;color:var(--ink);line-height:1.5;}
-
+/* Filter bar: search owns its full row; the two selects split the next row.
+   The input stays at 16px — below that, iOS Safari auto-zooms on focus. */
 .mr-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:4px;}
-.mr-search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 11px;flex:1;min-width:180px;}
-.mr-search input{background:none;border:none;outline:none;color:var(--ink);font-size:13px;width:100%;font-family:inherit;}
+.mr-search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px;flex:1 1 100%;width:100%;}
+.mr-search input{background:none;border:none;outline:none;color:var(--ink);font-size:16px;width:100%;font-family:inherit;}
 .mr-search input::placeholder{color:var(--dim);}
 .mr-select{background:var(--panel);border:1px solid var(--line);border-radius:9px;color:var(--muted);
-  font-size:12px;padding:9px 10px;font-family:'JetBrains Mono',monospace;outline:none;cursor:pointer;}
+  font-size:12px;padding:9px 10px;font-family:'JetBrains Mono',monospace;outline:none;cursor:pointer;flex:1;min-width:0;}
 
 .mr-labrow{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 0;}
 .mr-chip{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;background:transparent;
-  border:1px solid var(--line);color:var(--muted);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s;}
+  border:1px solid var(--line);color:var(--muted);padding:6px 11px;border-radius:20px;cursor:pointer;transition:.15s;white-space:nowrap;}
 .mr-chip:hover{color:var(--ink);border-color:var(--dim);}
 .mr-chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600;}
 
@@ -54,14 +49,12 @@
 .mr-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-bottom:9px;overflow:hidden;transition:border-color .18s,background .18s;}
 .mr-card:hover{border-color:#3A466B;}
 .mr-card.is-open{background:var(--raised);border-color:#3A466B;}
-.mr-card.is-active{border-color:var(--lab);box-shadow:0 0 0 1px var(--lab) inset, 0 8px 30px -16px var(--lab);}
 
 .mr-cardhead{width:100%;display:flex;align-items:stretch;background:none;border:none;cursor:pointer;text-align:left;padding:0;color:inherit;font-family:inherit;}
 .mr-rail{width:4px;flex:0 0 4px;background:var(--lab);align-self:stretch;}
 .mr-headmain{flex:1;padding:15px 6px 15px 15px;min-width:0;}
 .mr-namerow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .mr-name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:16px;letter-spacing:-.01em;}
-.mr-youtag{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;background:var(--lab);color:#0E1424;padding:3px 7px;border-radius:5px;font-weight:600;}
 .mr-newtag{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;border:1px solid var(--lab);color:var(--lab);padding:2px 6px;border-radius:5px;}
 .mr-opentag{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);padding:2px 6px;border-radius:5px;}
 .mr-locki{color:var(--dim);}
@@ -110,8 +103,6 @@
 .mr-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px;}
 .mr-link{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--bg);background:var(--lab);padding:8px 13px;border-radius:8px;text-decoration:none;transition:.15s;}
 .mr-link:hover{filter:brightness(1.12);}
-.mr-setactive{font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);padding:8px 12px;border-radius:8px;cursor:pointer;font-family:inherit;transition:.15s;}
-.mr-setactive:hover{color:var(--ink);border-color:var(--dim);}
 
 .mr-foot{margin-top:30px;font-size:11px;color:var(--dim);line-height:1.6;font-family:'JetBrains Mono',monospace;border-top:1px solid var(--line);padding-top:16px;}
 
@@ -122,4 +113,13 @@
   .mr-cols{grid-template-columns:1fr;gap:14px;}
   .mr-statgrid{grid-template-columns:repeat(2,1fr);}
   .mr-bestat{font-size:12px;}
+
+  /* Selects at 16px so iOS doesn't zoom on focus; bigger tap targets */
+  .mr-select{font-size:16px;padding:11px 12px;}
+
+  /* Type chips: one clean swipeable line, edge-to-edge bleed */
+  .mr-labrow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;margin:12px -18px 0;padding:0 18px 6px;}
+  .mr-labrow::-webkit-scrollbar{display:none;}
+  .mr-chip{flex:0 0 auto;padding:9px 14px;font-size:12px;}
 }

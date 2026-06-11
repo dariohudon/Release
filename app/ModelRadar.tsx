@@ -12,13 +12,12 @@ import "./radar.css";
    ────────────────────────────────────────────────────────────── */
 
 // ── Persistence ───────────────────────────────────────────────────────────────
-// activeId + last-used filters survive across sessions via localStorage.
+// Last-used filters survive across sessions via localStorage.
 // Hydrated in an effect (not initial state) so server and client render match.
 
 const STORAGE_KEY = "model-radar:v1";
 
 interface PersistedState {
-  activeId?: string;
   labFilter?: string;
   typeFilter?: string;
   sortBy?: string;
@@ -32,7 +31,6 @@ function loadPersisted(): PersistedState {
     const data = JSON.parse(raw) as PersistedState;
     // Validate against the catalog so stale/renamed entries can't wedge the UI.
     return {
-      activeId: MODELS.some((m) => m.id === data.activeId) ? data.activeId : undefined,
       labFilter: data.labFilter === "all" || (data.labFilter && data.labFilter in LABS) ? data.labFilter : undefined,
       typeFilter: TYPES.some((t) => t.key === data.typeFilter) ? data.typeFilter : undefined,
       sortBy: ["index", "newest", "price"].includes(data.sortBy ?? "") ? data.sortBy : undefined,
@@ -66,26 +64,20 @@ function ModelCard({
   m,
   expanded,
   onToggle,
-  activeId,
-  onSetActive,
 }: {
   m: Model;
   expanded: boolean;
   onToggle: () => void;
-  activeId: string;
-  onSetActive: (id: string) => void;
 }) {
   const lab = LABS[m.lab];
-  const isActive = activeId === m.id;
   return (
-    <div className={`mr-card ${expanded ? "is-open" : ""} ${isActive ? "is-active" : ""}`} style={{ "--lab": lab.color } as React.CSSProperties}>
+    <div className={`mr-card ${expanded ? "is-open" : ""}`} style={{ "--lab": lab.color } as React.CSSProperties}>
       <button className="mr-cardhead" onClick={onToggle} aria-expanded={expanded}>
         <span className="mr-rail" />
         <span className="mr-headmain">
           <span className="mr-namerow">
             <span className="mr-name">{m.name}</span>
-            {isActive && <span className="mr-youtag">you&rsquo;re here</span>}
-            {m.status === "new" && !isActive && <span className="mr-newtag">new</span>}
+            {m.status === "new" && <span className="mr-newtag">new</span>}
             {m.openWeight && <span className="mr-opentag">open</span>}
             {m.tags.includes("frontier") && <Lock size={11} className="mr-locki" />}
           </span>
@@ -138,9 +130,6 @@ function ModelCard({
 
           <div className="mr-actions">
             <a className="mr-link" href={m.link} target="_blank" rel="noreferrer">Open {lab.name} <ArrowUpRight size={14} /></a>
-            {!isActive && m.status !== "horizon" && (
-              <button className="mr-setactive" onClick={() => onSetActive(m.id)}>Mark as the one I&rsquo;m using</button>
-            )}
           </div>
         </div>
       </div>
@@ -150,7 +139,6 @@ function ModelCard({
 
 export default function ModelRadar() {
   const [openId, setOpenId] = useState<string | null>("fable-5");
-  const [activeId, setActiveId] = useState("fable-5");
   const [labFilter, setLabFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [query, setQuery] = useState("");
@@ -159,7 +147,6 @@ export default function ModelRadar() {
 
   useEffect(() => {
     const saved = loadPersisted();
-    if (saved.activeId) setActiveId(saved.activeId);
     if (saved.labFilter) setLabFilter(saved.labFilter);
     if (saved.typeFilter) setTypeFilter(saved.typeFilter);
     if (saved.sortBy) setSortBy(saved.sortBy);
@@ -172,14 +159,12 @@ export default function ModelRadar() {
     try {
       window.localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ activeId, labFilter, typeFilter, sortBy, query } satisfies PersistedState)
+        JSON.stringify({ labFilter, typeFilter, sortBy, query } satisfies PersistedState)
       );
     } catch {
       // storage full or blocked — persistence is best-effort
     }
-  }, [hydrated, activeId, labFilter, typeFilter, sortBy, query]);
-
-  const activeModel = MODELS.find((m) => m.id === activeId);
+  }, [hydrated, labFilter, typeFilter, sortBy, query]);
 
   const filtered = useMemo(() => {
     let list = MODELS.filter((m) => labFilter === "all" || m.lab === labFilter);
@@ -214,16 +199,6 @@ export default function ModelRadar() {
         <h1 className="mr-title">The frontier, at a glance</h1>
         <p className="mr-sub">Closed flagships, open-weight leaders, small/edge models and what&rsquo;s coming — what each is best at and what people are saying. Tap a card to open the full read-out. Filter by lab or by what a model is <i>for</i>. Colour = lab.</p>
 
-        {activeModel && (
-          <div className="mr-here">
-            <span className="mr-herek">You&rsquo;re here</span>
-            <span className="mr-heretxt">
-              <b>{activeModel.name}</b> — {activeModel.tier}, released {fmtDate(activeModel.released)}.
-              {activeModel.id === "fable-5" && " Brand-new and in the Mythos-class (Claude 5) tier, which is why older roundups don't list it yet — not a glitch."}
-            </span>
-          </div>
-        )}
-
         <div className="mr-controls">
           <div className="mr-search">
             <Search size={15} color="#5C668A" />
@@ -256,8 +231,7 @@ export default function ModelRadar() {
             </div>
             {g.items.map((m) => (
               <ModelCard key={m.id} m={m} expanded={openId === m.id}
-                onToggle={() => setOpenId(openId === m.id ? null : m.id)}
-                activeId={activeId} onSetActive={(id) => setActiveId(id)} />
+                onToggle={() => setOpenId(openId === m.id ? null : m.id)} />
             ))}
           </div>
         ))}

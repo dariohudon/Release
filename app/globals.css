@@ -1,30 +1,5 @@
-/* ── AI Release Radar — design tokens ──────────────────────────────────────────
-   Warm paper background, near-black ink, indigo accent. One accent color,
-   high contrast text, generous line height — legibility first. */
-
-:root {
-  --bg: #f6f5f2;
-  --surface: #ffffff;
-  --border: #e9e7e2;
-  --border-strong: #d8d5cf;
-
-  --ink: #1c1917;
-  --ink-soft: #57534e;
-  --muted: #a39e96;
-  --faint: #c9c5be;
-
-  --accent: #4f46e5;
-  --accent-ink: #3730a3;
-  --accent-soft: #eef2ff;
-  --fresh-border: #c7d2fe;
-
-  --good: #15803d;
-  --good-soft: #dcfce7;
-
-  --radius: 14px;
-  --shadow: 0 1px 2px rgba(28, 25, 23, 0.05);
-  --shadow-fresh: 0 2px 8px rgba(79, 70, 229, 0.1);
-}
+/* Base reset — Model Radar owns the page; its tokens live in app/radar.css
+   scoped under .mr-root. Body color matches so overscroll stays dark. */
 
 * {
   box-sizing: border-box;
@@ -36,36 +11,6 @@ html {
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
+  background: #0e1424;
   -webkit-font-smoothing: antialiased;
-}
-
-a {
-  color: inherit;
-}
-
-button {
-  font-family: inherit;
-}
-
-input[type="search"]::-webkit-search-decoration {
-  display: none;
-}
-
-/* Hide horizontal scrollbar on the chip row while keeping touch scroll */
-.chip-row {
-  scrollbar-width: none;
-}
-.chip-row::-webkit-scrollbar {
-  display: none;
-}
-
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 6px;
 }

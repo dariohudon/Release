@@ -2,15 +2,15 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AI Release Radar",
+  title: "Model Radar",
   description:
-    "Frontier and open-weights AI model releases plus top industry stories — release.brightening.ca",
+    "The AI frontier at a glance — closed flagships, open-weight leaders, and what's coming. release.brightening.ca",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f6f5f2",
+  themeColor: "#0E1424",
 };
 
 export default function RootLayout({
