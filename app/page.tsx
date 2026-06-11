@@ -106,17 +106,25 @@ export default async function Home() {
     <main style={{ maxWidth: 600, margin: "0 auto", padding: "28px 16px 48px" }}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
-        <h1
-          style={{
-            margin: "0 0 4px",
-            fontSize: 27,
-            fontWeight: 800,
-            letterSpacing: "-0.02em",
-            color: "var(--ink)",
-          }}
-        >
-          AI Release Radar<span style={{ color: "var(--accent)" }}>.</span>
-        </h1>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+          <h1
+            style={{
+              margin: "0 0 4px",
+              fontSize: 27,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              color: "var(--ink)",
+            }}
+          >
+            AI Release Radar<span style={{ color: "var(--accent)" }}>.</span>
+          </h1>
+          <a
+            href="/models"
+            style={{ fontSize: 13, fontWeight: 600, color: "var(--accent)", textDecoration: "none" }}
+          >
+            Model radar ›
+          </a>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <p style={{ margin: 0, fontSize: 13, color: "var(--muted)" }}>
             {releases.length} releases · {labCount} labs
