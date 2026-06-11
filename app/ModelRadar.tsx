@@ -9,6 +9,7 @@ import {
 import { ModelCard } from "./ModelCard";
 import Timeline from "./Timeline";
 import MapView from "./MapView";
+import StatusBar from "./StatusBar";
 import FilterSheet, { SecondaryFilters, DEFAULT_FILTERS, countActiveFilters } from "./FilterSheet";
 import "./radar.css";
 
@@ -172,10 +173,7 @@ export default function ModelRadar() {
   return (
     <div className="mr-root">
       <div className="mr-wrap">
-        <div className="mr-eyebrow">
-          <span className="mr-eyebrowleft"><span className="mr-livedot" /> Model Radar</span>
-          <span>June 2026</span>
-        </div>
+        <StatusBar />
         <h1 className="mr-title">Release Model Radar</h1>
         <p className="mr-sub">What&rsquo;s out, what&rsquo;s coming, and what deserves your attention. Tap a card for the full read-out. Colour = lab.</p>
 

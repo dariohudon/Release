@@ -14,9 +14,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const PAST_DAYS = 240;
 const FUTURE_DAYS = 160;
 const W = 360; // viewBox units; rendered at 100% width
-const H = 86;
-const TRACK_Y = 46;
-const LANES = [-14, 0, -28]; // vertical stagger to keep close dots tappable
+const H = 124;
+const TRACK_Y = 72;
+const LANES = [-22, 0, -44]; // vertical stagger to keep close dots tappable
 
 interface Dot {
   m: Model;
@@ -79,8 +79,8 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
         {/* month ticks */}
         {months.map((mo, i) => (
           <g key={i}>
-            <line x1={mo.x} y1={TRACK_Y - 4} x2={mo.x} y2={TRACK_Y + 4} stroke="var(--line)" strokeWidth="1" />
-            <text x={mo.x} y={H - 8} textAnchor="middle" className="mr-tltick">{mo.label}</text>
+            <line x1={mo.x} y1={TRACK_Y - 5} x2={mo.x} y2={TRACK_Y + 5} stroke="var(--line)" strokeWidth="1" />
+            <text x={mo.x} y={H - 12} textAnchor="middle" className="mr-tltick">{mo.label}</text>
           </g>
         ))}
         {/* track */}
@@ -88,7 +88,7 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
         {/* future segment, dashed */}
         <line x1={todayX} y1={TRACK_Y} x2={W} y2={TRACK_Y} stroke="var(--dim)" strokeWidth="1.5" strokeDasharray="3 4" opacity="0.6" />
         {/* today marker */}
-        <line x1={todayX} y1={10} x2={todayX} y2={TRACK_Y + 8} stroke="var(--good)" strokeWidth="1.5" />
+        <line x1={todayX} y1={14} x2={todayX} y2={TRACK_Y + 10} stroke="var(--good)" strokeWidth="1.5" />
         <circle cx={todayX} cy={TRACK_Y} r="3" fill="var(--good)" />
         {/* dots */}
         {dots.map((d) => {
@@ -100,7 +100,7 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
               {/* generous invisible hit area for thumbs */}
               <circle cx={d.x} cy={cy} r="13" fill="transparent" />
               <circle
-                cx={d.x} cy={cy} r="5.5"
+                cx={d.x} cy={cy} r="6"
                 fill={d.horizon ? "var(--bg)" : color}
                 stroke={color} strokeWidth="1.8"
                 strokeDasharray={d.horizon ? "2 2" : undefined}

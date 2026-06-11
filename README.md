@@ -27,6 +27,22 @@ specs, strengths vs watch-outs, pricing, and community sentiment.
 | Tmux Session | release |
 | Tmux Launcher | tmux-release |
 
+## Routes
+
+| Route | Page |
+|---|---|
+| `/` | Model Radar — the curated release tracker |
+| `/definitions` | AI Definitions — static, searchable glossary of model-release language |
+| `/news` | Lab News — best-effort feed of lab announcements (official RSS first, labelled news search fallback) |
+| `/labs/<id>` | Lab profile pages |
+
+Definitions is fully static (`lib/definitions/data.ts`) — edit the file to add
+terms. Lab News fetches server-side with a 6-hour revalidate, fails gracefully
+per lab, and falls back to a static list of official news pages if nothing is
+reachable; it **never updates the curated catalog automatically**. The model
+catalog remains hand-curated in `lib/models/data.ts`. A top-right menu on all
+three main pages switches between them.
+
 ## How it works
 
 - **All data is static** in `lib/models/data.ts` (`LABS` + `MODELS`). No
