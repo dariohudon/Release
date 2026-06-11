@@ -1,8 +1,11 @@
-# Model Radar
+# Release Model Radar
 
 The AI frontier at a glance — a curated tracker of closed flagships, open-weight
 leaders, small/edge models, and what's on the horizon. Expandable cards with
-specs, strengths vs watch-outs, pricing, and community sentiment.
+specs, strengths vs watch-outs, pricing, and community sentiment — plus a
+plain-English definitions library, a lab news feed, and a daily read-only
+update checker that surfaces candidates without ever touching the curated
+catalog.
 
 ![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
@@ -134,8 +137,23 @@ pm2 restart release
 
 Health check: `http://localhost:3033/api/health`
 
-## History
+## Build log
 
-This repo previously hosted Episode Radar (Sonarr + Plex tracker), then the
-AI Release Radar feed (June 2026), before becoming Model Radar. Both earlier
-apps are preserved in git history.
+How this repo got here (all in June 2026, newest first). Every earlier app
+remains recoverable from git history.
+
+| Commit | What changed |
+|---|---|
+| `4729537` | **Last-checked header badge** — `data/update-status.json` written by the checker; top-right badge shows "Checked Jun 11, 7:43 PM" (amber on failed sources / stale >36h, "Not checked yet" fallback); hourly ISR re-read |
+| `d160014` | **Definitions + Lab News** — `/definitions` (36-term plain-English glossary, search + category chips), `/news` (official RSS first, labelled news-search fallback, render-always static fallback, 6h revalidate), top-right site menu, taller timeline |
+| `4540d77` | **Daily update checker** — `npm run check:updates`: read-only candidate gathering from Hugging Face orgs, OpenRouter, and Google News, deduped against catalog + prior runs; cron-friendly; never edits the catalog |
+| `1c112b8` | **Spacing polish** — status-bar eyebrow, "Release Model Radar" title, triage moved into the Filters sheet, 20/40px rhythm, larger section headers |
+| `caec9e2` | **Filters bottom sheet** — secondary filters (lab, sort, type, best-for) moved off the page into a mobile bottom sheet / desktop modal with active-count badge; first card above the fold |
+| `cc0cc72` | **Hydration crash fix** — timeline SVG renders post-mount (positions derive from `Date.now()`; SSR coordinates could never match the client → React #418 in production) |
+| `721e091` | **Triage era** — use/watch/ignore verdicts, release timeline, intelligence-vs-price map view, for-the-job picker, new-since-last-visit, `/labs/<id>` profile pages |
+| `1e988aa` | **Model Radar takes over `/`** — release-feed app removed; mobile filter cleanup; 16px inputs to stop iOS focus zoom |
+| `e43b155` | **Model Radar lands** — the chat-built tracker integrated at `/models`: catalog split into `lib/models/data.ts`, CSS tokens extracted, localStorage persistence added |
+| `0e86a1a` | **AI Release Radar rewrite** — replaced the original Episode Radar (Sonarr + Plex episode tracker) with an AI model release feed (curated timeline + live Hugging Face + news), later superseded by Model Radar |
+
+Before all of this, the repo hosted **Episode Radar**, a Sonarr + Plex episode
+tracker (see `docs/milestones/`).
