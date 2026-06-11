@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { LABS, MODELS, releasedDate, Model } from "@/lib/models/data";
 
 /* Release timeline: recent months behind a "today" marker, horizon items
-   ahead of it as hollow dots. Tap a dot to jump to its card. */
+   ahead of it as hollow dots. Tap a dot to jump to its card.
+
+   The SVG only renders after mount: positions derive from Date.now(), so
+   server-rendered coordinates can never match the client's — rendering it
+   during SSR causes a hydration error (React #418). */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PAST_DAYS = 240;
@@ -22,7 +26,11 @@ interface Dot {
 }
 
 export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const { dots, months, todayX } = useMemo(() => {
+    if (!mounted) return { dots: [] as Dot[], months: [] as { x: number; label: string }[], todayX: 0 };
     const now = Date.now();
     const start = now - PAST_DAYS * DAY_MS;
     const end = now + FUTURE_DAYS * DAY_MS;
@@ -56,7 +64,7 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
     }
 
     return { dots, months, todayX: toX(now) };
-  }, []);
+  }, [mounted]);
 
   return (
     <div className="mr-timeline">
@@ -66,6 +74,7 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
           <i className="k-solid" /> shipped&ensp;<i className="k-hollow" /> horizon&ensp;<i className="k-today" /> today
         </span>
       </div>
+      {!mounted ? <div className="mr-tlsvg" style={{ aspectRatio: `${W}/${H}` }} /> : (
       <svg viewBox={`0 0 ${W} ${H}`} className="mr-tlsvg" role="img" aria-label="Model release timeline">
         {/* month ticks */}
         {months.map((mo, i) => (
@@ -102,6 +111,7 @@ export default function Timeline({ onPick }: { onPick: (id: string) => void }) {
           );
         })}
       </svg>
+      )}
     </div>
   );
 }
