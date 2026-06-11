@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import StatusBar from "../StatusBar";
 import NewsClient from "./NewsClient";
 import { fetchLabNews } from "@/lib/news/fetchNews";
+import { checkBadge } from "@/lib/updateStatus";
 import "../radar.css";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default async function NewsPage() {
   return (
     <div className="mr-root">
       <div className="mr-wrap">
-        <StatusBar />
+        <StatusBar check={checkBadge()} />
         <h1 className="mr-title">Lab News</h1>
         <p className="mr-sub">
           A source feed of recent lab announcements and model-release context.

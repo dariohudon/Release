@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import StatusBar from "../StatusBar";
 import DefinitionsClient from "./DefinitionsClient";
+import { checkBadge } from "@/lib/updateStatus";
 import "../radar.css";
 
 export const metadata: Metadata = {
@@ -8,11 +9,13 @@ export const metadata: Metadata = {
   description: "Model-release language translated into plain English.",
 };
 
+export const revalidate = 3600;
+
 export default function DefinitionsPage() {
   return (
     <div className="mr-root">
       <div className="mr-wrap">
-        <StatusBar />
+        <StatusBar check={checkBadge()} />
         <h1 className="mr-title">AI Definitions</h1>
         <p className="mr-sub">
           Model-release language, translated into plain English — what the terms in

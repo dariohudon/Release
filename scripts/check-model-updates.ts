@@ -21,6 +21,7 @@ import { MODELS, Model } from "../lib/models/data";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CANDIDATES_PATH = join(ROOT, "data", "update-candidates.json");
 const LOG_PATH = join(ROOT, "docs", "model-radar-update-log.md");
+const STATUS_PATH = join(ROOT, "data", "update-status.json");
 
 const RECENT_DAYS = 14; // only surface things from the last two weeks
 const FETCH_TIMEOUT_MS = 8000;
@@ -308,6 +309,23 @@ async function main() {
   }
   appendFileSync(LOG_PATH, lines.join("\n") + "\n");
 
+  // Runtime status for the app header ("last checked"). Written on every
+  // completed run — source failures are counted, not fatal.
+  writeFileSync(
+    STATUS_PATH,
+    JSON.stringify(
+      {
+        lastCheckedAt: nowIso(),
+        sourcesChecked: jobs.length,
+        candidatesFound: found.length,
+        newCandidates: fresh.length,
+        failedSources: failures.length,
+      },
+      null,
+      2
+    ) + "\n"
+  );
+
   // CLI summary
   console.log("── Model Radar update check ─────────────────────────");
   console.log(`sources checked : ${jobs.length}`);
@@ -315,6 +333,7 @@ async function main() {
   console.log(`new candidates  : ${fresh.length}`);
   console.log(`candidates file : ${CANDIDATES_PATH}`);
   console.log(`run log         : ${LOG_PATH}`);
+  console.log(`status file     : ${STATUS_PATH}`);
   if (failures.length > 0) {
     console.log(`failed sources  : ${failures.length}`);
     for (const f of failures) console.log(`  ✗ ${f}`);

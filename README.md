@@ -85,6 +85,13 @@ review:
 - `data/update-candidates.json` — accumulated candidates, deduped against
   previous runs and against the live catalog
 - `docs/model-radar-update-log.md` — appended human-readable run log
+- `data/update-status.json` — records the latest checker run (timestamp +
+  counts). The top-right header badge reads this file and shows the latest
+  successful cron/manual check ("Checked Jun 11, 7:43 PM"); it turns amber
+  when sources failed or the last check is older than 36 hours, and shows
+  "Not checked yet" when no run is recorded. The page only reads this small
+  file — it never runs the checker, and the public catalog still does not
+  auto-update.
 
 Candidates carry a lab guess, type (model-card / openrouter / news),
 confidence, and a suggested action (`review` / `ignore` / `add-to-catalog` /

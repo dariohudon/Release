@@ -63,12 +63,22 @@ function SiteMenu() {
   );
 }
 
-export default function StatusBar() {
+export interface CheckBadgeProps {
+  full: string;
+  short: string;
+  title: string;
+  warn: boolean;
+}
+
+export default function StatusBar({ check }: { check: CheckBadgeProps }) {
   return (
     <div className="mr-eyebrow">
       <span className="mr-eyebrowleft"><span className="mr-livedot" /> Model Radar</span>
       <span className="mr-eyebrowright">
-        June 2026
+        <span className={`mr-checkbadge ${check.warn ? "warn" : ""}`} title={check.title}>
+          <span className="mr-checkfull">{check.full}</span>
+          <span className="mr-checkshort">{check.short}</span>
+        </span>
         <SiteMenu />
       </span>
     </div>

@@ -14,5 +14,6 @@ tsconfig.tsbuildinfo
 
 # Update-checker runtime artifacts (review on the server, never committed)
 data/update-candidates.json
+data/update-status.json
 docs/model-radar-update-log.md
 logs/

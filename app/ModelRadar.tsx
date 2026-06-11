@@ -9,7 +9,7 @@ import {
 import { ModelCard } from "./ModelCard";
 import Timeline from "./Timeline";
 import MapView from "./MapView";
-import StatusBar from "./StatusBar";
+import StatusBar, { CheckBadgeProps } from "./StatusBar";
 import FilterSheet, { SecondaryFilters, DEFAULT_FILTERS, countActiveFilters } from "./FilterSheet";
 import "./radar.css";
 
@@ -69,7 +69,7 @@ function sinceLastVisit(prevVisit: number | null): Set<string> {
   return ids;
 }
 
-export default function ModelRadar() {
+export default function ModelRadar({ check }: { check: CheckBadgeProps }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [view, setView] = useState<View>("list");
   const [labFilter, setLabFilter] = useState("all");
@@ -173,7 +173,7 @@ export default function ModelRadar() {
   return (
     <div className="mr-root">
       <div className="mr-wrap">
-        <StatusBar />
+        <StatusBar check={check} />
         <h1 className="mr-title">Release Model Radar</h1>
         <p className="mr-sub">What&rsquo;s out, what&rsquo;s coming, and what deserves your attention. Tap a card for the full read-out. Colour = lab.</p>
 
