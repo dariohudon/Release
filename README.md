@@ -56,6 +56,36 @@ specs, strengths vs watch-outs, pricing, and community sentiment.
   (dark navy palette, per-lab color rails). Space Grotesk / Inter /
   JetBrains Mono. No Tailwind.
 
+## Daily update checker (read-only)
+
+RMR **does not auto-update the public catalog**. The page stays static and
+curated; `lib/models/data.ts` is only ever edited by hand after review.
+
+`npm run check:updates` runs a read-only checker that gathers **candidate**
+releases/updates from public, key-free sources (Hugging Face org listings,
+the OpenRouter model list, Google News RSS queries) and writes them for
+review:
+
+- `data/update-candidates.json` — accumulated candidates, deduped against
+  previous runs and against the live catalog
+- `docs/model-radar-update-log.md` — appended human-readable run log
+
+Candidates carry a lab guess, type (model-card / openrouter / news),
+confidence, and a suggested action (`review` / `ignore` / `add-to-catalog` /
+`update-existing`). News-only items are never marked add-to-catalog;
+rumour-flavoured headlines are downgraded to low confidence. Source failures
+are logged and never crash the run. **Human/Claude review is required before
+anything is copied into `lib/models/data.ts`.**
+
+To run it daily on the server:
+
+```bash
+mkdir -p /var/www/release/logs
+crontab -e
+# add:
+15 7 * * * cd /var/www/release && npm run check:updates >> logs/model-radar-check.log 2>&1
+```
+
 ## Data caveats
 
 Seed data was verified against the web on June 11, 2026, but figures are
