@@ -1,34 +1,35 @@
 import { NextResponse } from "next/server";
-import { checkSonarrHealth } from "@/lib/sonarr";
-import { checkPlexHealth } from "@/lib/plex";
+import { newsTopics } from "@/lib/ai/news";
 
 export const dynamic = "force-dynamic";
 
+async function probe(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(5000), cache: "no-store" });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
-  const [sonarr, plex] = await Promise.all([
-    checkSonarrHealth(),
-    checkPlexHealth(),
+  const [huggingface, news] = await Promise.all([
+    probe("https://huggingface.co/api/models?limit=1"),
+    probe("https://news.google.com/rss/search?q=ai&hl=en-US&gl=US&ceid=US:en"),
   ]);
 
   return NextResponse.json({
     status: "ok",
     project: "release",
+    app: "ai-release-radar",
     domain: "release.brightening.ca",
     port: 3033,
     pm2Process: "release",
     timestamp: new Date().toISOString(),
-    sonarr: {
-      configured: sonarr.configured,
-      reachable: sonarr.reachable,
-      ...(sonarr.version ? { version: sonarr.version } : {}),
-      ...(sonarr.url ? { url: sonarr.url } : {}),
-    },
-    plex: {
-      configured: plex.configured,
-      reachable: plex.reachable,
-      ...(plex.version ? { version: plex.version } : {}),
-      tvLibrary: plex.tvLibrary,
-      ...(plex.libraryFound !== undefined ? { libraryFound: plex.libraryFound } : {}),
+    sources: {
+      curated: true,
+      huggingface: { reachable: huggingface },
+      news: { reachable: news, topics: newsTopics() },
     },
   });
 }
