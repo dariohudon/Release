@@ -18,7 +18,8 @@
 .mr-wrap{max-width:880px;margin:0 auto;}
 
 .mr-eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.22em;
-  text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  text-transform:uppercase;color:var(--dim);display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.mr-eyebrowleft{display:flex;align-items:center;gap:8px;}
 .mr-livedot{width:7px;height:7px;border-radius:50%;background:var(--good);animation:mrpulse 2.2s infinite;}
 @keyframes mrpulse{0%{box-shadow:0 0 0 0 rgba(94,234,212,.5)}70%{box-shadow:0 0 0 7px rgba(94,234,212,0)}100%{box-shadow:0 0 0 0 rgba(94,234,212,0)}}
 .mr-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:34px;line-height:1.04;letter-spacing:-.02em;margin:0 0 8px;}
@@ -26,7 +27,7 @@
 
 /* Filter bar: search owns its full row; the two selects split the next row.
    The input stays at 16px — below that, iOS Safari auto-zooms on focus. */
-.mr-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:4px;}
+.mr-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:40px;}
 .mr-search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 12px;flex:1 1 100%;width:100%;}
 .mr-search input{background:none;border:none;outline:none;color:var(--ink);font-size:16px;width:100%;font-family:inherit;}
 .mr-search input::placeholder{color:var(--dim);}
@@ -42,8 +43,9 @@
 .mr-count{font-size:11.5px;color:var(--dim);font-family:'JetBrains Mono',monospace;margin:14px 2px 6px;}
 
 .mr-group{margin-top:6px;}
+.mr-group+.mr-group{margin-top:40px;}
 .mr-grouphead{display:flex;align-items:baseline;gap:10px;margin:22px 2px 11px;}
-.mr-grouptitle{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;letter-spacing:.02em;color:var(--ink);text-transform:uppercase;}
+.mr-grouptitle{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:17px;letter-spacing:.02em;color:var(--ink);text-transform:uppercase;}
 .mr-groupnote{font-size:11.5px;color:var(--dim);}
 
 .mr-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;margin-bottom:9px;overflow:hidden;transition:border-color .18s,background .18s;}
@@ -131,7 +133,7 @@
 .mr-verdict.v-watch{color:var(--warn);border-color:rgba(240,179,107,.4);background:rgba(240,179,107,.08);}
 .mr-verdict.v-ignore{color:var(--dim);border-color:var(--line);}
 
-.mr-verdictrow{display:flex;gap:6px;margin:18px 0 12px;}
+.mr-verdictrow{display:flex;gap:6px;}
 .mr-vbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
   font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;
   background:var(--panel);border:1px solid var(--line);color:var(--muted);
@@ -154,7 +156,7 @@
 
 /* ── Timeline ────────────────────────────────────────────────────────────── */
 .mr-timeline{background:var(--panel);border:1px solid var(--line);border-radius:13px;
-  padding:12px 14px 6px;margin-bottom:4px;}
+  padding:12px 14px 6px;margin-bottom:20px;}
 .mr-tlhead{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .mr-tllabel{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
   text-transform:uppercase;color:var(--dim);}
@@ -173,7 +175,7 @@
 .mr-jobchip.on{background:var(--good);border-color:var(--good);color:var(--bg);}
 
 /* ── Count row + view toggle ─────────────────────────────────────────────── */
-.mr-countrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 2px 6px;}
+.mr-countrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 6px;}
 .mr-countrow .mr-count{margin:0;}
 .mr-count b{color:var(--ink);}
 .mr-viewtoggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto;}

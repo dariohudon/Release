@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import {
-  LABS, TYPES, MODELS, STATUS_META, JOBS, VERDICT_META,
+  LABS, TYPES, MODELS, STATUS_META, JOBS,
   Model, ModelStatus, Verdict, priceNum, releasedDate,
 } from "@/lib/models/data";
 import { ModelCard } from "./ModelCard";
@@ -67,8 +67,6 @@ function sinceLastVisit(prevVisit: number | null): Set<string> {
   }
   return ids;
 }
-
-const VERDICT_KEYS: ("all" | Verdict)[] = ["all", "use", "watch", "ignore"];
 
 export default function ModelRadar() {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -159,28 +157,26 @@ export default function ModelRadar() {
     return order.map((s) => ({ status: s, items: byStatus[s] })).filter((g) => g.items.length);
   }, [filtered, sortBy]);
 
-  const verdictCounts = useMemo(() => {
-    const c: Record<string, number> = { all: MODELS.length, use: 0, watch: 0, ignore: 0 };
-    MODELS.forEach((m) => { c[m.verdict]++; });
-    return c;
-  }, []);
-
   const total = filtered.length;
 
-  const secondary: SecondaryFilters = { labFilter, typeFilter, sortBy, jobFilter };
+  const secondary: SecondaryFilters = { labFilter, typeFilter, sortBy, jobFilter, verdictFilter };
   const activeFilterCount = countActiveFilters(secondary);
   const applyFilters = (f: SecondaryFilters) => {
     setLabFilter(f.labFilter);
     setTypeFilter(f.typeFilter);
     setSortBy(f.sortBy);
     setJobFilter(f.jobFilter);
+    setVerdictFilter(f.verdictFilter as "all" | Verdict);
   };
 
   return (
     <div className="mr-root">
       <div className="mr-wrap">
-        <div className="mr-eyebrow"><span className="mr-livedot" /> Model Radar · June 2026</div>
-        <h1 className="mr-title">The frontier, at a glance</h1>
+        <div className="mr-eyebrow">
+          <span className="mr-eyebrowleft"><span className="mr-livedot" /> Model Radar</span>
+          <span>June 2026</span>
+        </div>
+        <h1 className="mr-title">Release Model Radar</h1>
         <p className="mr-sub">What&rsquo;s out, what&rsquo;s coming, and what deserves your attention. Tap a card for the full read-out. Colour = lab.</p>
 
         {sinceIds.size > 0 && (
@@ -191,22 +187,6 @@ export default function ModelRadar() {
         )}
 
         <Timeline onPick={jumpTo} />
-
-        {/* Triage first: the use / watch / ignore lens */}
-        <div className="mr-verdictrow" role="tablist" aria-label="Verdict filter">
-          {VERDICT_KEYS.map((k) => (
-            <button
-              key={k}
-              role="tab"
-              aria-selected={verdictFilter === k}
-              className={`mr-vbtn ${verdictFilter === k ? "on" : ""} ${k !== "all" ? `v-${k}` : ""}`}
-              onClick={() => { setVerdictFilter(k); setJobFilter(null); }}
-            >
-              {k === "all" ? "all" : VERDICT_META[k as Verdict].label}
-              <i>{verdictCounts[k]}</i>
-            </button>
-          ))}
-        </div>
 
         <div className="mr-controls">
           <div className="mr-search">

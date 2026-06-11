@@ -1,18 +1,19 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { LABS, TYPES, JOBS } from "@/lib/models/data";
+import { LABS, TYPES, JOBS, MODELS, VERDICT_META, Verdict } from "@/lib/models/data";
 
 /* Secondary filters live behind the "Filters" button: bottom sheet on
    mobile, centered panel on desktop. Edits a draft; Apply commits, Clear all
-   commits the defaults. Triage + search stay on the page — they're primary. */
+   commits the defaults. Search stays on the page — it's primary. */
 
 export interface SecondaryFilters {
   labFilter: string;
   typeFilter: string;
   sortBy: string;
   jobFilter: string | null;
+  verdictFilter: string;
 }
 
 export const DEFAULT_FILTERS: SecondaryFilters = {
@@ -20,6 +21,7 @@ export const DEFAULT_FILTERS: SecondaryFilters = {
   typeFilter: "all",
   sortBy: "index",
   jobFilter: null,
+  verdictFilter: "all",
 };
 
 export function countActiveFilters(f: SecondaryFilters): number {
@@ -28,8 +30,11 @@ export function countActiveFilters(f: SecondaryFilters): number {
   if (f.typeFilter !== DEFAULT_FILTERS.typeFilter) n++;
   if (f.sortBy !== DEFAULT_FILTERS.sortBy) n++;
   if (f.jobFilter !== DEFAULT_FILTERS.jobFilter) n++;
+  if (f.verdictFilter !== DEFAULT_FILTERS.verdictFilter) n++;
   return n;
 }
+
+const VERDICT_KEYS: ("all" | Verdict)[] = ["all", "use", "watch", "ignore"];
 
 const SORTS = [
   { key: "index", label: "intelligence" },
@@ -59,6 +64,12 @@ export default function FilterSheet({
 }) {
   const [draft, setDraft] = useState<SecondaryFilters>(current);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const verdictCounts = useMemo(() => {
+    const c: Record<string, number> = { all: MODELS.length, use: 0, watch: 0, ignore: 0 };
+    MODELS.forEach((m) => { c[m.verdict]++; });
+    return c;
+  }, []);
 
   // Re-seed the draft each time the sheet opens, lock body scroll, close on
   // Escape, move focus into the dialog.
@@ -101,6 +112,23 @@ export default function FilterSheet({
         </div>
 
         <div className="mr-sheetbody">
+          <Section title="Triage">
+            <div className="mr-verdictrow" role="tablist" aria-label="Verdict filter">
+              {VERDICT_KEYS.map((k) => (
+                <button
+                  key={k}
+                  role="tab"
+                  aria-selected={draft.verdictFilter === k}
+                  className={`mr-vbtn ${draft.verdictFilter === k ? "on" : ""} ${k !== "all" ? `v-${k}` : ""}`}
+                  onClick={() => set({ verdictFilter: k })}
+                >
+                  {k === "all" ? "all" : VERDICT_META[k].label}
+                  <i>{verdictCounts[k]}</i>
+                </button>
+              ))}
+            </div>
+          </Section>
+
           <Section title="Lab">
             <div className="mr-sheetchips">
               <button className={`mr-chip ${draft.labFilter === "all" ? "on" : ""}`} onClick={() => set({ labFilter: "all" })}>
