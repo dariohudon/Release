@@ -75,6 +75,31 @@ three main pages switches between them.
   (dark navy palette, per-lab color rails). Space Grotesk / Inter /
   JetBrains Mono. No Tailwind.
 
+## Native client API
+
+Read-only public JSON endpoints for future native clients (planned SwiftUI
+iOS app — see `docs/native-ios-plan.md`). All share one envelope:
+`{ ok, generatedAt, count, data }` on success, `{ ok: false, generatedAt,
+error, data: null }` on failure. Types live in `lib/api/types.ts`.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/models` | curated catalog + counts by lab / status / verdict |
+| `GET /api/labs` | lab id, name, color, model count |
+| `GET /api/definitions` | definitions library + categories |
+| `GET /api/update-status` | last checker run (timestamp + counts); 404 envelope when no run recorded |
+| `GET /api/news` | cleaned lab-news items, 6h revalidate, graceful fallback |
+
+Notes:
+
+- These are **read-only**; no mutation endpoints exist, and nothing here can
+  trigger the update checker (cron-only).
+- The public model catalog remains curated in `lib/models/data.ts`; the daily
+  checker does not auto-update it.
+- Candidate files (`data/update-candidates.json`), run logs, and server paths
+  are private and are **not exposed** by any endpoint.
+- Native clients should consume these endpoints instead of GitHub raw files.
+
 ## Daily update checker (read-only)
 
 RMR **does not auto-update the public catalog**. The page stays static and
