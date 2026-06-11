@@ -32,12 +32,25 @@ specs, strengths vs watch-outs, pricing, and community sentiment.
 - **All data is static** in `lib/models/data.ts` (`LABS` + `MODELS`). No
   backend, no API keys, no network calls — by design. To update the catalog,
   edit that file and rebuild.
+- **Verdict triage**: every model carries an editorial verdict — use / watch /
+  ignore — shown as a pill on each card and as the primary filter. Edit
+  verdicts in `lib/models/data.ts`.
+- **Release timeline**: recent months behind a "today" marker, horizon items
+  ahead as hollow dots; tap a dot to jump to its card.
+- **Map view**: intelligence vs $/M scatter (list/map toggle). Sweet spot =
+  top-left. Models without comparable figures are listed below the chart.
+- **New since last visit**: returning visitors get a banner + card markers for
+  anything released since their previous session (localStorage).
+- **For-the-job picker**: chips like "client copy & brand voice" surface the
+  top pick(s) for that job, best first (mappings in `JOBS` in the data file).
+- **Lab pages**: `/labs/<id>` (e.g. `/labs/anthropic`) — evergreen profile,
+  focus areas, official links, and that lab's tracked models. Linked from
+  every card drawer.
 - **Sections**: Just shipped / Live now / On the horizon (rumored items are
   honestly labelled as estimates).
-- **Filtering**: text search, lab dropdown, type chips (flagship, reasoning,
-  coding, creative, small & edge, open-weight, frontier), sort by
-  intelligence / newest / cheapest.
-- **Persistence**: last-used filters are kept in localStorage across visits.
+- **Filtering**: text search, lab dropdown, type chips, verdict filter, sort
+  by intelligence / newest / cheapest (price sort understands "~3" etc.).
+- **Persistence**: last-used filters + view are kept in localStorage.
 - **Styling**: design tokens as CSS custom properties in `app/radar.css`
   (dark navy palette, per-lab color rails). Space Grotesk / Inter /
   JetBrains Mono. No Tailwind.

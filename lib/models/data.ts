@@ -19,6 +19,11 @@ export interface Sentiment {
 
 export type ModelStatus = "new" | "live" | "horizon";
 
+/* Triage: "use" = in the toolkit, "watch" = interesting but not yet,
+   "ignore" = noise for this studio. Defaults set from the forDario notes
+   — override freely. */
+export type Verdict = "use" | "watch" | "ignore";
+
 export interface Model {
   id: string;
   lab: string;
@@ -26,6 +31,7 @@ export interface Model {
   tags: string[];
   released: string;
   status: ModelStatus;
+  verdict: Verdict;
   confidence?: string;
   tier: string;
   bestAt: string;
@@ -75,6 +81,7 @@ export const MODELS: Model[] = [
   /* ── ANTHROPIC ── */
   {
     id: "fable-5", lab: "anthropic", name: "Claude Fable 5", tags: ["creative"],
+    verdict: "use",
     released: "2026-06-09", status: "new", tier: "Mythos-class · creative",
     bestAt: "Creative + long-form writing that doesn't read as AI; surprisingly strong code",
     index: null, indexNote: "specialist",
@@ -89,6 +96,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "opus-4-8", lab: "anthropic", name: "Claude Opus 4.8", tags: ["flagship", "coding"],
+    verdict: "use",
     released: "2026-05-28", status: "live", tier: "Flagship",
     bestAt: "#1 overall intelligence; hardest agentic coding and reliability",
     index: 61.4, priceIn: "5", priceOut: "25", context: "1M", speed: "Fast mode ~2.5×",
@@ -101,6 +109,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "sonnet-4-6", lab: "anthropic", name: "Claude Sonnet 4.6", tags: ["balanced"],
+    verdict: "use",
     released: "2026-03-01", status: "live", tier: "Balanced workhorse",
     bestAt: "Best quality-per-dollar for everyday + production tasks",
     index: 54, indexNote: "approx", priceIn: "~3", priceOut: "~15", priceNote: "approx — check Anthropic",
@@ -114,6 +123,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "haiku-4-5", lab: "anthropic", name: "Claude Haiku 4.5", tags: ["small"],
+    verdict: "watch",
     released: "2025-10-01", status: "live", tier: "Small / fast",
     bestAt: "Cheap, low-latency tasks at scale",
     index: null, indexNote: "small-tier", priceIn: "~1", priceOut: "~5", priceNote: "approx",
@@ -127,6 +137,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "mythos-preview", lab: "anthropic", name: "Claude Mythos Preview", tags: ["frontier"],
+    verdict: "ignore",
     released: "2026-04", status: "live", tier: "Frontier · restricted",
     bestAt: "Anthropic's most advanced model; advanced cybersecurity capability",
     index: null, indexNote: "restricted", priceIn: null, priceOut: null,
@@ -141,6 +152,7 @@ export const MODELS: Model[] = [
   /* ── OPENAI ── */
   {
     id: "gpt-5-5", lab: "openai", name: "GPT-5.5", tags: ["flagship", "coding", "creative"],
+    verdict: "watch",
     released: "2026-04-23", status: "live", tier: "Flagship",
     bestAt: "Creative writing leader; terminal coding and computer-use champion",
     index: 60.2, priceIn: "5", priceOut: "30", context: "1M (Codex 400K)", speed: "Instant tier available",
@@ -153,6 +165,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "gpt-5-3-codex", lab: "openai", name: "GPT-5.3-Codex", tags: ["coding"],
+    verdict: "ignore",
     released: "2026-02-05", status: "live", tier: "Coding specialist",
     bestAt: "Fast repo-aware coding: search, terminal, debug",
     index: null, indexNote: "specialist", priceIn: "—", priceOut: "—",
@@ -167,6 +180,7 @@ export const MODELS: Model[] = [
   /* ── GOOGLE ── */
   {
     id: "gemini-3-1-pro", lab: "google", name: "Gemini 3.1 Pro", tags: ["flagship", "reasoning"],
+    verdict: "watch",
     released: "2026-02-19", status: "live", tier: "Flagship · reasoning",
     bestAt: "Reasoning and data-analysis leader; deep multimodal",
     index: 57, priceIn: "—", priceOut: "—", priceNote: "see Google pricing",
@@ -180,6 +194,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "gemini-3-5-flash", lab: "google", name: "Gemini 3.5 Flash", tags: ["flagship", "small"],
+    verdict: "use",
     released: "2026-05-19", status: "new", tier: "Value / speed",
     bestAt: "Cheapest + fastest near-frontier model; high-volume agentic work",
     index: 55.3, priceIn: "1.50", priceOut: "9", context: "1M", speed: "≈4× faster than rivals",
@@ -192,6 +207,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "gemma-4", lab: "google", name: "Gemma 4", tags: ["small", "open"], openWeight: true,
+    verdict: "watch",
     released: "2026-03-01", status: "live", tier: "Open · small",
     bestAt: "Easy, permissive open model that runs on a single GPU",
     index: null, indexNote: "open small", priceIn: "0", priceOut: "0", priceNote: "free to self-host",
@@ -206,6 +222,7 @@ export const MODELS: Model[] = [
   /* ── xAI ── */
   {
     id: "grok-4-3", lab: "xai", name: "Grok 4.3", tags: ["flagship"],
+    verdict: "ignore",
     released: "2026-04-30", status: "live", tier: "Flagship · value",
     bestAt: "Cheapest of the big four; strong agentic + tool use",
     index: 53, priceIn: "low", priceOut: "low", priceNote: "lowest of the big four",
@@ -220,6 +237,7 @@ export const MODELS: Model[] = [
   /* ── OPEN-WEIGHT ── */
   {
     id: "deepseek-v4", lab: "deepseek", name: "DeepSeek V4 Pro", tags: ["open", "coding", "reasoning"], openWeight: true,
+    verdict: "watch",
     released: "2026-04-24", status: "new", tier: "Open · coding ceiling",
     bestAt: "Open-weight agentic-coding ceiling; deep math reasoning",
     index: null, indexNote: "open leader", priceIn: "0.14", priceOut: "0.28", priceNote: "V4 Flash hosted ~$0.14/$0.28 — very cheap",
@@ -233,6 +251,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "qwen-3-6", lab: "alibaba", name: "Qwen 3.6 / 3.7 Max", tags: ["open", "reasoning"], openWeight: true,
+    verdict: "watch",
     released: "2026-04-16", status: "live", tier: "Open · reasoning",
     bestAt: "Fast-moving, multilingual, cheap open family with self-hostable sizes",
     index: null, indexNote: "open leader", priceIn: "1.25", priceOut: "—", priceNote: "3.7 Max is cheapest in the top-10 by GPQA",
@@ -246,6 +265,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "llama-4-scout", lab: "meta", name: "Llama 4 Scout", tags: ["open"], openWeight: true,
+    verdict: "ignore",
     released: "2025-04-05", status: "live", tier: "Open · long context",
     bestAt: "Extreme long-context (10M tokens) for RAG-on-everything",
     index: null, indexNote: "vendor-reported", priceIn: "0", priceOut: "0", priceNote: "free to self-host",
@@ -259,6 +279,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "glm-5-1", lab: "zai", name: "GLM-5.1", tags: ["open", "coding"], openWeight: true,
+    verdict: "watch",
     released: "2026-05-01", status: "live", tier: "Open · agentic coding",
     bestAt: "Strongest all-around open model for long-horizon agentic engineering",
     index: null, indexNote: "open leader", priceIn: "0", priceOut: "0", priceNote: "free to self-host; hosted options exist",
@@ -272,6 +293,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "kimi-k2-6", lab: "moonshot", name: "Kimi K2.6", tags: ["open"], openWeight: true,
+    verdict: "ignore",
     released: "2026-05-15", status: "live", tier: "Open · agentic",
     bestAt: "Agent swarms and long autonomous runs",
     index: null, indexNote: "tops open GPQA 90.5%", priceIn: "0", priceOut: "0", priceNote: "free to self-host; hosted options exist",
@@ -285,6 +307,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "minimax-m3", lab: "minimax", name: "MiniMax M3", tags: ["open", "coding"], openWeight: true,
+    verdict: "watch",
     released: "2026-06-01", status: "new", tier: "Open · efficient multimodal",
     bestAt: "First open-weight to combine frontier coding, 1M context, and multimodality",
     index: 50, indexNote: "approx (M2.7)", priceIn: "0", priceOut: "0", priceNote: "cheapest to serve — tiny active-param count",
@@ -298,6 +321,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "phi-4", lab: "microsoft", name: "Phi-4 / Phi-4-mini", tags: ["small", "open"], openWeight: true,
+    verdict: "watch",
     released: "2026-01-09", status: "live", tier: "Small / edge",
     bestAt: "Tiny distilled models that punch far above their size",
     index: null, indexNote: "small-tier", priceIn: "0", priceOut: "0", priceNote: "free; runs on 8GB",
@@ -311,6 +335,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "mistral-large-3", lab: "mistral", name: "Mistral Large 3", tags: ["balanced", "open"], openWeight: true,
+    verdict: "ignore",
     released: "2026-02-01", status: "live", tier: "Balanced · European",
     bestAt: "Solid balanced model with European data-residency appeal",
     index: null, indexNote: "approx", priceIn: "—", priceOut: "—",
@@ -325,6 +350,7 @@ export const MODELS: Model[] = [
   /* ── HORIZON ── */
   {
     id: "gemini-3-5-pro", lab: "google", name: "Gemini 3.5 Pro", tags: ["flagship", "reasoning"],
+    verdict: "watch",
     released: "2026-06", status: "horizon", confidence: "expected", tier: "Flagship (upcoming)",
     bestAt: "Deferred from I/O — the deep-reasoning sibling to 3.5 Flash",
     index: null, priceIn: null, priceOut: null,
@@ -336,6 +362,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "meta-muse", lab: "meta", name: "Meta ‘Muse’ (closed)", tags: ["flagship"],
+    verdict: "ignore",
     released: "2026-H2", status: "horizon", confidence: "rumored", tier: "Closed frontier (rumored)",
     bestAt: "Meta's pivot toward a closed frontier line; Behemoth still training",
     index: null, priceIn: null, priceOut: null,
@@ -347,6 +374,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "next-claude", lab: "anthropic", name: "Next Claude (Opus 4.9 / Mythos public)", tags: ["flagship"],
+    verdict: "watch",
     released: "2026-07", status: "horizon", confidence: "rumored", tier: "Flagship (estimated)",
     bestAt: "~6-week cadence points to another point release soon",
     index: null, priceIn: null, priceOut: null,
@@ -358,6 +386,7 @@ export const MODELS: Model[] = [
   },
   {
     id: "next-openai", lab: "openai", name: "Next GPT (5.6 / 6)", tags: ["flagship"],
+    verdict: "watch",
     released: "2026-H2", status: "horizon", confidence: "rumored", tier: "Flagship (estimated)",
     bestAt: "No confirmed GPT-6; pace suggests another release in H2",
     index: null, priceIn: null, priceOut: null,
@@ -374,3 +403,172 @@ export const STATUS_META: Record<ModelStatus, { label: string; note: string }> =
   live:    { label: "Live now",     note: "current, generally available" },
   horizon: { label: "On the horizon", note: "upcoming or rumored — treat as estimates" },
 };
+
+export const VERDICT_META: Record<Verdict, { label: string; color: string; note: string }> = {
+  use:    { label: "use",    color: "#5EEAD4", note: "in the toolkit" },
+  watch:  { label: "watch",  color: "#F0B36B", note: "interesting — not yet" },
+  ignore: { label: "ignore", color: "#5C668A", note: "noise for this studio" },
+};
+
+/* ── Jobs — "what should I reach for when…" ──────────────────────────────────
+   Drives the for-the-job picker. Picks are ordered: first = default choice. */
+
+export interface Job {
+  key: string;
+  label: string;
+  picks: string[]; // model ids, best first
+}
+
+export const JOBS: Job[] = [
+  { key: "client-copy", label: "client copy & brand voice", picks: ["fable-5", "gpt-5-5"] },
+  { key: "everyday",    label: "everyday drafting & code",  picks: ["sonnet-4-6"] },
+  { key: "hard-build",  label: "hard builds & refactors",   picks: ["opus-4-8"] },
+  { key: "bulk",        label: "bulk drafts at volume",     picks: ["gemini-3-5-flash", "haiku-4-5"] },
+  { key: "analysis",    label: "research & data analysis",  picks: ["gemini-3-1-pro", "opus-4-8"] },
+  { key: "self-host",   label: "self-host on leonard",      picks: ["gemma-4", "qwen-3-6"] },
+  { key: "offline",     label: "fully offline / edge",      picks: ["phi-4"] },
+];
+
+/* ── Lab profiles — drives the /labs/<id> pages ──────────────────────────────
+   Evergreen descriptions only; model-specific figures live on the models. */
+
+export interface LabProfile {
+  about: string;
+  focus: string[];
+  links: { label: string; url: string }[];
+}
+
+export const LAB_PROFILES: Record<string, LabProfile> = {
+  anthropic: {
+    about:
+      "AI safety company founded in 2021 by former OpenAI researchers. Makes the Claude family — flagship Opus, workhorse Sonnet, fast Haiku, and now the Mythos-class creative tier — plus Claude Code for agentic development. Known for long-horizon agent reliability and being unusually candid about model limitations.",
+    focus: ["Agentic coding", "Long-horizon reliability", "Safety research"],
+    links: [
+      { label: "anthropic.com", url: "https://www.anthropic.com" },
+      { label: "News", url: "https://www.anthropic.com/news" },
+      { label: "Claude app", url: "https://claude.ai" },
+    ],
+  },
+  openai: {
+    about:
+      "Maker of ChatGPT and the GPT line. Ships the broadest consumer + developer surface in AI: the GPT flagships, the Codex coding environment, and (since gpt-oss) occasional open-weight releases. Tends to lead on creative writing, terminal automation, and computer use.",
+    focus: ["Creative writing", "Terminal & computer use", "Consumer scale"],
+    links: [
+      { label: "openai.com", url: "https://openai.com" },
+      { label: "News", url: "https://openai.com/news/" },
+      { label: "Hugging Face", url: "https://huggingface.co/openai" },
+    ],
+  },
+  google: {
+    about:
+      "Google DeepMind builds the Gemini line (deep multimodal reasoning, long context) and the open-weight Gemma family. Distribution is the superpower: Gemini ships inside Search, Android, and Workspace, and the Flash tier is usually the price/speed benchmark everyone else is measured against.",
+    focus: ["Multimodal reasoning", "Price/speed (Flash)", "Open small models (Gemma)"],
+    links: [
+      { label: "gemini.google.com", url: "https://gemini.google.com" },
+      { label: "DeepMind blog", url: "https://blog.google/technology/google-deepmind/" },
+      { label: "Hugging Face", url: "https://huggingface.co/google" },
+    ],
+  },
+  xai: {
+    about:
+      "Elon Musk's AI lab, tightly integrated with X. Grok models emphasize real-time information, tool use, and aggressive pricing relative to the other closed flagships. Trains on the Colossus supercluster.",
+    focus: ["Real-time data", "Tool use", "Price competition"],
+    links: [
+      { label: "x.ai", url: "https://x.ai" },
+      { label: "Grok", url: "https://grok.com" },
+    ],
+  },
+  meta: {
+    about:
+      "Meta AI built the Llama family that kick-started the open-weight ecosystem, including the extreme-long-context Llama 4 Scout. Currently the storyline to watch: new open-weight releases are paused while the frontier effort reportedly moves behind closed doors.",
+    focus: ["Open-weight legacy (Llama)", "Long context", "Closed-frontier pivot"],
+    links: [
+      { label: "ai.meta.com", url: "https://ai.meta.com" },
+      { label: "Hugging Face", url: "https://huggingface.co/meta-llama" },
+    ],
+  },
+  deepseek: {
+    about:
+      "Hangzhou lab famous for training near-frontier models at a fraction of typical cost, then releasing the weights. V3/R1 reset expectations for open models on reasoning and math; the V4 line pushes the open agentic-coding ceiling.",
+    focus: ["Training efficiency", "Open reasoning & math", "Agentic coding"],
+    links: [
+      { label: "deepseek.com", url: "https://www.deepseek.com" },
+      { label: "Hugging Face", url: "https://huggingface.co/deepseek-ai" },
+    ],
+  },
+  alibaba: {
+    about:
+      "Alibaba's Qwen team runs the most active open release cadence in the industry — full families from sub-1B edge models to frontier-scale MoE, Apache 2.0 licensed and strongly multilingual. The default 'safe enterprise' open pick.",
+    focus: ["Release cadence", "Apache 2.0 licensing", "Multilingual"],
+    links: [
+      { label: "qwen.ai", url: "https://qwen.ai" },
+      { label: "Hugging Face", url: "https://huggingface.co/Qwen" },
+    ],
+  },
+  zai: {
+    about:
+      "Z.ai (formerly Zhipu AI) builds the GLM line, increasingly focused on long-horizon agentic engineering. GLM models keep showing up as the open coding pick in agent tools once people benchmark them.",
+    focus: ["Agentic engineering", "Open coding"],
+    links: [
+      { label: "z.ai", url: "https://z.ai" },
+      { label: "Hugging Face", url: "https://huggingface.co/zai-org" },
+    ],
+  },
+  moonshot: {
+    about:
+      "Moonshot AI makes the Kimi models — trillion-parameter open MoE built for long autonomous runs and agent swarms. Strong on open-model knowledge benchmarks; heavy to self-host well.",
+    focus: ["Agent autonomy", "Trillion-param MoE"],
+    links: [
+      { label: "moonshot.ai", url: "https://www.moonshot.ai" },
+      { label: "Hugging Face", url: "https://huggingface.co/moonshotai" },
+    ],
+  },
+  minimax: {
+    about:
+      "Shanghai lab specializing in efficient MoE architectures — small active-parameter counts that make frontier-ish capability cheap to serve. The M-series pairs coding strength with multimodality and 1M context.",
+    focus: ["Serving efficiency", "Multimodal MoE"],
+    links: [
+      { label: "minimax.io", url: "https://www.minimax.io" },
+      { label: "Hugging Face", url: "https://huggingface.co/MiniMaxAI" },
+    ],
+  },
+  microsoft: {
+    about:
+      "Microsoft Research's Phi line proves how far distillation can shrink capability: tiny open models that run on laptops and phones yet punch far above their size. The reference point for on-device and privacy-first deployments.",
+    focus: ["Small models", "Distillation", "On-device"],
+    links: [
+      { label: "microsoft.com/ai", url: "https://www.microsoft.com/ai" },
+      { label: "Hugging Face", url: "https://huggingface.co/microsoft" },
+    ],
+  },
+  mistral: {
+    about:
+      "French lab mixing open releases with commercial flagships. Rarely tops a single benchmark but consistently solid, and the go-to answer when a client needs European data residency.",
+    focus: ["EU data residency", "Open + commercial mix"],
+    links: [
+      { label: "mistral.ai", url: "https://mistral.ai" },
+      { label: "Hugging Face", url: "https://huggingface.co/mistralai" },
+    ],
+  },
+};
+
+/* Robust price parser: handles "5", "~3", "1.50", "0"; returns null for
+   "low", "—", null. Used by the cheapest sort and the map view. */
+export function priceNum(p: string | null | undefined): number | null {
+  if (!p) return null;
+  const n = parseFloat(p.replace(/[~$\s]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+/* Parses the loose released formats ("2026-06-09", "2026-04", "2026-H2")
+   into an approximate Date for timeline positioning. */
+export function releasedDate(s: string): Date | null {
+  if (!s) return null;
+  const half = s.match(/^(\d{4})-H([12])$/i);
+  if (half) return new Date(Number(half[1]), half[2] === "1" ? 3 : 9, 1);
+  const parts = s.split("-").map(Number);
+  if (!parts[0]) return null;
+  if (parts.length === 1) return new Date(parts[0], 6, 1);
+  if (parts.length === 2) return new Date(parts[0], parts[1] - 1, 15);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}

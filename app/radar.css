@@ -123,3 +123,102 @@
   .mr-labrow::-webkit-scrollbar{display:none;}
   .mr-chip{flex:0 0 auto;padding:9px 14px;font-size:12px;}
 }
+
+/* ── Verdict triage ──────────────────────────────────────────────────────── */
+.mr-verdict{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:3px 8px;border-radius:6px;border:1px solid var(--line);color:var(--dim);white-space:nowrap;}
+.mr-verdict.v-use{color:var(--good);border-color:rgba(94,234,212,.4);background:rgba(94,234,212,.08);}
+.mr-verdict.v-watch{color:var(--warn);border-color:rgba(240,179,107,.4);background:rgba(240,179,107,.08);}
+.mr-verdict.v-ignore{color:var(--dim);border-color:var(--line);}
+
+.mr-verdictrow{display:flex;gap:6px;margin:18px 0 12px;}
+.mr-vbtn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.04em;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted);
+  padding:10px 6px;border-radius:9px;cursor:pointer;transition:.15s;}
+.mr-vbtn i{font-style:normal;font-size:10px;color:var(--dim);}
+.mr-vbtn:hover{color:var(--ink);border-color:var(--dim);}
+.mr-vbtn.on{color:var(--ink);border-color:var(--dim);background:var(--raised);font-weight:600;}
+.mr-vbtn.on.v-use{color:var(--good);border-color:rgba(94,234,212,.5);}
+.mr-vbtn.on.v-watch{color:var(--warn);border-color:rgba(240,179,107,.5);}
+.mr-vbtn.on i{color:inherit;opacity:.7;}
+
+/* ── New since last visit ────────────────────────────────────────────────── */
+.mr-sincedot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 auto;
+  animation:mrpulse 2.2s infinite;}
+.mr-sincebanner{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--good);
+  background:rgba(94,234,212,.07);border:1px solid rgba(94,234,212,.25);
+  border-radius:10px;padding:11px 14px;margin-bottom:16px;cursor:pointer;transition:.15s;}
+.mr-sincebanner:hover{background:rgba(94,234,212,.12);}
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+.mr-timeline{background:var(--panel);border:1px solid var(--line);border-radius:13px;
+  padding:12px 14px 6px;margin-bottom:4px;}
+.mr-tlhead{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.mr-tllabel{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);}
+.mr-tlkey{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--dim);display:flex;align-items:center;}
+.mr-tlkey i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;}
+.mr-tlkey .k-solid{background:var(--muted);}
+.mr-tlkey .k-hollow{border:1.5px dashed var(--muted);width:6px;height:6px;}
+.mr-tlkey .k-today{background:var(--good);width:2px;height:10px;border-radius:1px;}
+.mr-tlsvg{display:block;width:100%;height:auto;margin-top:2px;}
+.mr-tltick{font-family:'JetBrains Mono',monospace;font-size:8.5px;fill:var(--dim);}
+
+/* ── Job picker ──────────────────────────────────────────────────────────── */
+.mr-jobrow{display:flex;align-items:center;gap:7px;margin:10px 0 0;flex-wrap:wrap;}
+.mr-joblabel{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);flex:0 0 auto;}
+.mr-jobchip.on{background:var(--good);border-color:var(--good);color:var(--bg);}
+
+/* ── Count row + view toggle ─────────────────────────────────────────────── */
+.mr-countrow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 2px 6px;}
+.mr-countrow .mr-count{margin:0;}
+.mr-count b{color:var(--ink);}
+.mr-viewtoggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto;}
+.mr-viewtoggle button{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;
+  background:var(--panel);border:none;color:var(--muted);padding:7px 13px;cursor:pointer;transition:.15s;}
+.mr-viewtoggle button.on{background:var(--ink);color:var(--bg);font-weight:600;}
+
+/* ── Map view ────────────────────────────────────────────────────────────── */
+.mr-map{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:14px 10px 10px;}
+.mr-mapsvg{display:block;width:100%;height:auto;}
+.mr-mapquad{font-family:'JetBrains Mono',monospace;font-size:8.5px;letter-spacing:.1em;
+  text-transform:uppercase;fill:var(--dim);}
+.mr-mapquad.good{fill:var(--good);}
+.mr-mapquad.warn{fill:var(--warn);}
+.mr-mapquad.dim{fill:var(--dim);}
+.mr-mapaxis{font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.08em;fill:var(--dim);}
+.mr-maptick{font-family:'JetBrains Mono',monospace;font-size:8.5px;fill:var(--dim);}
+.mr-maplabel{font-family:'Space Grotesk',sans-serif;font-size:10.5px;font-weight:600;}
+.mr-mapnote{font-size:11px;color:var(--dim);line-height:1.6;margin:10px 6px 4px;font-family:'JetBrains Mono',monospace;}
+
+/* ── Misc ────────────────────────────────────────────────────────────────── */
+.mr-empty{color:var(--muted);font-size:13px;text-align:center;padding:28px 0;}
+.mr-empty b{color:var(--ink);}
+.mr-lablink{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line);
+  padding:8px 12px;border-radius:8px;transition:.15s;}
+.mr-lablink:hover{color:var(--ink);border-color:var(--dim);}
+
+/* ── Lab pages ───────────────────────────────────────────────────────────── */
+.mr-back{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);text-decoration:none;margin-bottom:18px;}
+.mr-back:hover{color:var(--ink);}
+.mr-labhero{display:flex;gap:16px;background:var(--panel);border:1px solid var(--line);
+  border-radius:13px;padding:18px 18px 18px 0;overflow:hidden;}
+.mr-labrail{width:4px;flex:0 0 4px;background:var(--lab);border-radius:0;}
+.mr-labout{color:var(--muted);font-size:13.5px;line-height:1.6;margin:8px 0 0;max-width:560px;}
+.mr-labfocus{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+.mr-focuschip{cursor:default;color:var(--ink);}
+.mr-lablinks{display:flex;flex-wrap:wrap;gap:9px;margin-top:16px;}
+
+@media(max-width:620px){
+  .mr-vbtn{padding:11px 4px;font-size:11px;}
+  .mr-jobrow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    scrollbar-width:none;margin:10px -18px 0;padding:0 18px 4px;}
+  .mr-jobrow::-webkit-scrollbar{display:none;}
+  .mr-jobchip{flex:0 0 auto;}
+  .mr-verdict{font-size:9px;padding:2px 6px;}
+  .mr-labhero{padding-right:14px;}
+}
