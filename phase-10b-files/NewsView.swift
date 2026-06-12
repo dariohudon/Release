@@ -27,6 +27,7 @@ struct NewsView: View {
                                 .foregroundStyle(showFavoritesOnly ? Theme.warn : Theme.dim)
                         }
                         .accessibilityLabel(showFavoritesOnly ? "Show all news" : "Show favourite labs only")
+                        .accessibilityValue(showFavoritesOnly ? "favourite labs filter on" : "favourite labs filter off")
                     }
                 }
         }
@@ -41,25 +42,35 @@ struct NewsView: View {
         case .failed(let message):
             ErrorView(message: message) { Task { await load(force: true) } }
         case .loaded(let payload) where payload.items.isEmpty:
-            // Even an empty cached payload should say it's cached.
-            VStack(spacing: 0) {
-                if isCached {
-                    CachedDataNotice(savedAt: cachedAt)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                }
-                EmptyStateView(
-                    icon: "newspaper",
-                    title: "No news available",
-                    message: "Check back after the next radar update.",
-                    retry: { Task { await load(force: true) } }
+            if showFavoritesOnly {
+                // Favourite-aware even when the whole feed is empty:
+                // no favourites → invite to star; favourites → no matches.
+                favoritesOnlyContent(
+                    FavoriteLabNews.state(items: payload.items, favoriteIDs: favorites.favoriteIDs),
+                    failedLabs: payload.failedLabs
                 )
+            } else {
+                // Generic global empty state — correct for All News.
+                // Even an empty cached payload should say it's cached.
+                VStack(spacing: 0) {
+                    if isCached {
+                        CachedDataNotice(savedAt: cachedAt)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 12)
+                    }
+                    EmptyStateView(
+                        icon: "newspaper",
+                        title: "No news available",
+                        message: "Check back after the next radar update.",
+                        retry: { Task { await load(force: true) } }
+                    )
+                }
+                .background(Theme.bg)
             }
-            .background(Theme.bg)
         case .loaded(let payload):
             let forYou = FavoriteLabNews.state(items: payload.items, favoriteIDs: favorites.favoriteIDs)
             if showFavoritesOnly {
-                favoritesOnlyContent(forYou)
+                favoritesOnlyContent(forYou, failedLabs: payload.failedLabs)
             } else {
                 allNewsList(payload, forYou: forYou)
             }
@@ -79,9 +90,7 @@ struct NewsView: View {
             }
             if let failed = payload.failedLabs, !failed.isEmpty {
                 Section {
-                    Text("Unreachable right now: \(failed.joined(separator: ", "))")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(Theme.warn)
+                    failedLabsText(failed)
                         .listRowBackground(Theme.warn.opacity(0.08))
                 }
             }
@@ -89,13 +98,13 @@ struct NewsView: View {
                 switch forYou {
                 case .noFavorites:
                     Text("Star a lab to see its latest stories here.")
-                        .font(.system(size: 12.5))
+                        .font(.footnote)
                         .foregroundStyle(Theme.muted)
                         .listRowBackground(Theme.panel)
                         .listRowSeparator(.hidden)
                 case .noMatches:
                     Text("No recent stories from your favourite labs.")
-                        .font(.system(size: 12.5))
+                        .font(.footnote)
                         .foregroundStyle(Theme.muted)
                         .listRowBackground(Theme.panel)
                         .listRowSeparator(.hidden)
@@ -127,21 +136,24 @@ struct NewsView: View {
     }
 
     /// Star-filtered view: favourite-lab stories only, with honest empty
-    /// states instead of an empty list.
+    /// states instead of an empty list. Operational context (cached
+    /// notice, failed-labs warning) is never hidden behind the filter.
     @ViewBuilder
-    private func favoritesOnlyContent(_ forYou: FavoriteLabNews.ForYouState) -> some View {
+    private func favoritesOnlyContent(_ forYou: FavoriteLabNews.ForYouState, failedLabs: [String]?) -> some View {
         switch forYou {
         case .noFavorites:
             cachedAwareEmptyState(
                 icon: "star",
                 title: "No favourite labs yet",
-                message: "Star a lab to see its latest stories here."
+                message: "Star a lab to see its latest stories here.",
+                failedLabs: failedLabs
             )
         case .noMatches:
             cachedAwareEmptyState(
                 icon: "newspaper",
                 title: "Nothing new from your labs",
-                message: "No recent stories from your favourite labs."
+                message: "No recent stories from your favourite labs.",
+                failedLabs: failedLabs
             )
         case .stories(let items):
             List {
@@ -150,6 +162,12 @@ struct NewsView: View {
                         CachedDataNotice(savedAt: cachedAt)
                             .listRowBackground(Theme.panel)
                             .listRowSeparator(.hidden)
+                    }
+                }
+                if let failed = failedLabs, !failed.isEmpty {
+                    Section {
+                        failedLabsText(failed)
+                            .listRowBackground(Theme.warn.opacity(0.08))
                     }
                 }
                 Section {
@@ -167,6 +185,14 @@ struct NewsView: View {
         }
     }
 
+    /// Same warning text in every context (copy unchanged from the
+    /// original All News section).
+    private func failedLabsText(_ failed: [String]) -> some View {
+        Text("Unreachable right now: \(failed.joined(separator: ", "))")
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(Theme.warn)
+    }
+
     private var forYouHeader: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("FOR YOU")
@@ -180,14 +206,21 @@ struct NewsView: View {
         }
     }
 
-    /// Empty state that still surfaces the offline notice when the data
-    /// behind it came from cache.
-    private func cachedAwareEmptyState(icon: String, title: String, message: String) -> some View {
+    /// Empty state that still surfaces the offline notice and the
+    /// failed-labs warning when present — empty doesn't mean hiding
+    /// operational context.
+    private func cachedAwareEmptyState(icon: String, title: String, message: String, failedLabs: [String]?) -> some View {
         VStack(spacing: 0) {
             if isCached {
                 CachedDataNotice(savedAt: cachedAt)
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
+            }
+            if let failed = failedLabs, !failed.isEmpty {
+                failedLabsText(failed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
             }
             EmptyStateView(icon: icon, title: title, message: message)
         }
