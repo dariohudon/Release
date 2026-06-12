@@ -28,8 +28,8 @@ struct RootView: View {
             ModelsView()
                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
                 .tag(AppTab.today)
-            LabsView(onViewRelatedStories: { id, name in
-                relatedNewsLab = RelatedNewsLab(id: id, name: name)
+            LabsView(onViewRelatedStories: { id, resolvedName in
+                relatedNewsLab = RelatedNewsLab(id: id, resolvedName: resolvedName)
                 selectedTab = .news
             })
                 .tabItem { Label("Labs", systemImage: "building.2") }

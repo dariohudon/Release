@@ -6,9 +6,10 @@ import SwiftUI
    last fresh load, and a gentle offline notice when showing cached data. */
 
 struct LabsView: View {
-    /// Phase 10C: forwards a "view related stories" request (lab id, lab
-    /// name) up to the tab container, which switches to News.
-    var onViewRelatedStories: (String, String) -> Void = { _, _ in }
+    /// Phase 10C: forwards a "view related stories" request (lab id,
+    /// resolved lab name — nil when the id no longer matches a current
+    /// lab) up to the tab container, which switches to News.
+    var onViewRelatedStories: (String, String?) -> Void = { _, _ in }
 
     @EnvironmentObject private var favorites: LabFavoritesStore
     @State private var state: Loadable<LabsPayload> = .loading

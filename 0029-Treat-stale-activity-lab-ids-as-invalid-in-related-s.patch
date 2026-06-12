@@ -1,0 +1,239 @@
+From 00ba82ff71cc70ebfe1fa671443554e5adecaacb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 22:17:31 +0000
+Subject: [PATCH] Treat stale activity lab ids as invalid in related stories
+
+---
+ .../Features/Labs/LabActivityView.swift       | 12 +++---
+ .../Features/Labs/LabsView.swift              |  7 ++--
+ .../Features/News/FavoriteLabNews.swift       | 29 +++++++++++---
+ .../Features/News/NewsView.swift              |  7 ++--
+ ReleaseModelRadar/ReleaseModelRadarApp.swift  |  4 +-
+ .../FavoriteLabNewsTests.swift                | 39 +++++++++++++++----
+ 6 files changed, 73 insertions(+), 25 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabActivityView.swift b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+index 759e66c..3b02d0a 100644
+--- a/ReleaseModelRadar/Features/Labs/LabActivityView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+@@ -10,8 +10,11 @@ struct LabActivityView: View {
+     let isCached: Bool
+     let cachedAt: Date?
+     let onSelect: (String) -> Void
+-    /// Phase 10C: (lab id, lab name) → News tab filtered to that lab.
+-    let onViewStories: (String, String) -> Void
++    /// Phase 10C: (lab id, resolved lab name) → News tab filtered to that
++    /// lab. The name is nil when the activity's lab id no longer matches a
++    /// current lab — News then shows the safe invalid/stale state instead
++    /// of guessing, and the raw id is never used as a display name.
++    let onViewStories: (String, String?) -> Void
+ 
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @Environment(\.dismiss) private var dismiss
+@@ -94,7 +97,7 @@ struct LabActivityView: View {
+                         },
+                         onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) },
+                         onViewStories: {
+-                            onViewStories(entry.activity.labID, entry.lab?.name ?? entry.activity.labID)
++                            onViewStories(entry.activity.labID, entry.lab?.name)
+                             dismiss()
+                         }
+                     )
+@@ -144,11 +147,10 @@ private struct ActivityRow: View {
+                         .font(.footnote.weight(.semibold))
+                 }
+                 .foregroundStyle(Theme.good)
+-                .frame(height: 44) // HIG hit target; row stays slim below
++                .frame(height: 44) // unambiguous HIG hit target, no overlap tricks
+                 .contentShape(Rectangle())
+             }
+             .buttonStyle(.plain)
+-            .padding(.vertical, -10)
+             .padding(.leading, 24) // align under the text column, past the dot
+             .accessibilityLabel("View related stories from \(labName)")
+             .accessibilityHint("Opens News filtered to this lab.")
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 19aaa09..aa0ec26 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -6,9 +6,10 @@ import SwiftUI
+    last fresh load, and a gentle offline notice when showing cached data. */
+ 
+ struct LabsView: View {
+-    /// Phase 10C: forwards a "view related stories" request (lab id, lab
+-    /// name) up to the tab container, which switches to News.
+-    var onViewRelatedStories: (String, String) -> Void = { _, _ in }
++    /// Phase 10C: forwards a "view related stories" request (lab id,
++    /// resolved lab name — nil when the id no longer matches a current
++    /// lab) up to the tab container, which switches to News.
++    var onViewRelatedStories: (String, String?) -> Void = { _, _ in }
+ 
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<LabsPayload> = .loading
+diff --git a/ReleaseModelRadar/Features/News/FavoriteLabNews.swift b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+index 0590cb4..b51f504 100644
+--- a/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
++++ b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+@@ -64,9 +64,10 @@ enum FavoriteLabNews {
+     // ── Related stories (Phase 10C: Lab Activity → News) ─────────────────────
+ 
+     enum RelatedState: Equatable {
+-        /// The lab id is missing/blank — never guess; show a safe state.
++        /// The lab id is missing/blank, or doesn't resolve to a known
++        /// current lab (stale activity) — never guess; show a safe state.
+         case invalidLab
+-        /// Valid lab id, but the feed has no stories from it.
++        /// Valid, known lab id, but the feed has no stories from it.
+         case noStories
+         /// All stories from this lab, in API (newest-first) order — no
+         /// per-lab cap: the user explicitly asked for this one lab.
+@@ -78,13 +79,25 @@ enum FavoriteLabNews {
+         items.filter { $0.lab == labID }
+     }
+ 
+-    static func relatedState(labID: String?, items: [NewsItem]) -> RelatedState {
+-        guard let labID, !labID.trimmingCharacters(in: .whitespaces).isEmpty else {
++    /// A nonblank id is NOT enough: it must also be a known current lab,
++    /// otherwise a stale Lab Activity record would masquerade as a lab
++    /// that merely has no stories.
++    static func relatedState(labID: String?, knownLabIDs: Set<String>, items: [NewsItem]) -> RelatedState {
++        guard let labID,
++              !labID.trimmingCharacters(in: .whitespaces).isEmpty,
++              knownLabIDs.contains(labID) else {
+             return .invalidLab
+         }
+         let matches = relatedStories(to: labID, in: items)
+         return matches.isEmpty ? .noStories : .stories(matches)
+     }
++
++    /// The handoff-level decision: a request whose id failed to resolve
++    /// against the current labs list is invalid by construction.
++    static func relatedState(for request: RelatedNewsLab?, items: [NewsItem]) -> RelatedState {
++        guard let request, request.isResolved else { return .invalidLab }
++        return relatedState(labID: request.id, knownLabIDs: [request.id], items: items)
++    }
+ }
+ 
+ /// A "show me this lab's stories" request handed from Lab Activity to the
+@@ -92,5 +105,11 @@ enum FavoriteLabNews {
+ /// not persisted and not routed through any URL/deep-link machinery.
+ struct RelatedNewsLab: Equatable {
+     let id: String
+-    let name: String
++    /// Display name resolved against the CURRENT labs list at handoff
++    /// time. nil means the activity's lab id no longer matches a known
++    /// lab — related mode shows "No related stories found." and the raw
++    /// id is never displayed as a name.
++    let resolvedName: String?
++
++    var isResolved: Bool { resolvedName != nil }
+ }
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 4520348..fad725a 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -112,7 +112,8 @@ struct NewsView: View {
+     /// (cached notice, failed-labs warning) as every other mode.
+     @ViewBuilder
+     private func relatedContent(_ lab: RelatedNewsLab, payload: NewsPayload) -> some View {
+-        switch FavoriteLabNews.relatedState(labID: lab.id, items: payload.items) {
++        let displayName = lab.resolvedName ?? "this lab" // only shown in resolved states
++        switch FavoriteLabNews.relatedState(for: lab, items: payload.items) {
+         case .invalidLab:
+             cachedAwareEmptyState(
+                 icon: "newspaper",
+@@ -123,7 +124,7 @@ struct NewsView: View {
+         case .noStories:
+             cachedAwareEmptyState(
+                 icon: "newspaper",
+-                title: "Nothing new from \(lab.name)",
++                title: "Nothing new from \(displayName)",
+                 message: "No recent stories from this lab.",
+                 failedLabs: payload.failedLabs
+             )
+@@ -154,7 +155,7 @@ struct NewsView: View {
+                             .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                             .tracking(1.2)
+                             .foregroundStyle(Theme.ink)
+-                        Text("Stories from \(lab.name).")
++                        Text("Stories from \(displayName).")
+                             .font(.system(size: 11))
+                             .foregroundStyle(Theme.muted)
+                             .textCase(nil)
+diff --git a/ReleaseModelRadar/ReleaseModelRadarApp.swift b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+index 6bc97b1..d6b6018 100644
+--- a/ReleaseModelRadar/ReleaseModelRadarApp.swift
++++ b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+@@ -28,8 +28,8 @@ struct RootView: View {
+             ModelsView()
+                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
+                 .tag(AppTab.today)
+-            LabsView(onViewRelatedStories: { id, name in
+-                relatedNewsLab = RelatedNewsLab(id: id, name: name)
++            LabsView(onViewRelatedStories: { id, resolvedName in
++                relatedNewsLab = RelatedNewsLab(id: id, resolvedName: resolvedName)
+                 selectedTab = .news
+             })
+                 .tabItem { Label("Labs", systemImage: "building.2") }
+diff --git a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+index 36bf157..4449a3f 100644
+--- a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
++++ b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+@@ -87,22 +87,47 @@ final class FavoriteLabNewsTests: XCTestCase {
+                        "newest-first feed order is kept")
+     }
+ 
+-    func test_relatedStateInvalidForMissingOrBlankLabID() {
+-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: nil, items: feed), .invalidLab)
+-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "   ", items: feed), .invalidLab)
++    private let knownLabs: Set<String> = ["anthropic", "openai", "mistral", "deepseek"]
++
++    func test_relatedStateInvalidForMissingBlankOrUnknownLabID() {
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: nil, knownLabIDs: knownLabs, items: feed), .invalidLab)
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "   ", knownLabIDs: knownLabs, items: feed), .invalidLab)
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "vanished-lab", knownLabIDs: knownLabs, items: feed), .invalidLab,
++                       "a nonblank id that is not a known current lab is stale, not merely story-less")
+     }
+ 
+-    func test_relatedStateNoStoriesForUnknownLabOrEmptyFeed() {
+-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "deepseek", items: feed), .noStories)
+-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "anthropic", items: []), .noStories)
++    func test_relatedStateNoStoriesForKnownLabWithoutStories() {
++        // deepseek is a known lab with no stories in the feed.
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "deepseek", knownLabIDs: knownLabs, items: feed), .noStories)
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "anthropic", knownLabIDs: knownLabs, items: []), .noStories)
+     }
+ 
+     func test_relatedStateCarriesAllStoriesForKnownLab() {
+-        let state = FavoriteLabNews.relatedState(labID: "openai", items: feed)
++        let state = FavoriteLabNews.relatedState(labID: "openai", knownLabIDs: knownLabs, items: feed)
+         guard case .stories(let items) = state else {
+             return XCTFail("expected stories, got \(state)")
+         }
+         XCTAssertEqual(items.count, 4)
+         XCTAssertTrue(items.allSatisfy { $0.lab == "openai" })
+     }
++
++    /// The real stale-activity handoff: the lab id failed to resolve
++    /// against the current labs list, so the request carries no name and
++    /// must land in the invalid state — never "no recent stories".
++    func test_staleActivityHandoffIsInvalidNotNoStories() {
++        let stale = RelatedNewsLab(id: "vanished-lab", resolvedName: nil)
++        XCTAssertEqual(FavoriteLabNews.relatedState(for: stale, items: feed), .invalidLab)
++        XCTAssertNil(stale.resolvedName, "the raw id is never available as a display name")
++
++        let resolvedNoStories = RelatedNewsLab(id: "deepseek", resolvedName: "DeepSeek")
++        XCTAssertEqual(FavoriteLabNews.relatedState(for: resolvedNoStories, items: feed), .noStories)
++
++        let resolvedWithStories = RelatedNewsLab(id: "openai", resolvedName: "OpenAI")
++        guard case .stories(let items) = FavoriteLabNews.relatedState(for: resolvedWithStories, items: feed) else {
++            return XCTFail("expected stories")
++        }
++        XCTAssertEqual(items.count, 4)
++
++        XCTAssertEqual(FavoriteLabNews.relatedState(for: nil, items: feed), .invalidLab)
++    }
+ }
+-- 
+2.43.0
+

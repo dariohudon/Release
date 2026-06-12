@@ -10,8 +10,11 @@ struct LabActivityView: View {
     let isCached: Bool
     let cachedAt: Date?
     let onSelect: (String) -> Void
-    /// Phase 10C: (lab id, lab name) → News tab filtered to that lab.
-    let onViewStories: (String, String) -> Void
+    /// Phase 10C: (lab id, resolved lab name) → News tab filtered to that
+    /// lab. The name is nil when the activity's lab id no longer matches a
+    /// current lab — News then shows the safe invalid/stale state instead
+    /// of guessing, and the raw id is never used as a display name.
+    let onViewStories: (String, String?) -> Void
 
     @EnvironmentObject private var favorites: LabFavoritesStore
     @Environment(\.dismiss) private var dismiss
@@ -94,7 +97,7 @@ struct LabActivityView: View {
                         },
                         onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) },
                         onViewStories: {
-                            onViewStories(entry.activity.labID, entry.lab?.name ?? entry.activity.labID)
+                            onViewStories(entry.activity.labID, entry.lab?.name)
                             dismiss()
                         }
                     )
@@ -144,11 +147,10 @@ private struct ActivityRow: View {
                         .font(.footnote.weight(.semibold))
                 }
                 .foregroundStyle(Theme.good)
-                .frame(height: 44) // HIG hit target; row stays slim below
+                .frame(height: 44) // unambiguous HIG hit target, no overlap tricks
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.vertical, -10)
             .padding(.leading, 24) // align under the text column, past the dot
             .accessibilityLabel("View related stories from \(labName)")
             .accessibilityHint("Opens News filtered to this lab.")

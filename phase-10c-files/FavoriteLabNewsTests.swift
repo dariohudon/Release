@@ -87,22 +87,47 @@ final class FavoriteLabNewsTests: XCTestCase {
                        "newest-first feed order is kept")
     }
 
-    func test_relatedStateInvalidForMissingOrBlankLabID() {
-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: nil, items: feed), .invalidLab)
-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "   ", items: feed), .invalidLab)
+    private let knownLabs: Set<String> = ["anthropic", "openai", "mistral", "deepseek"]
+
+    func test_relatedStateInvalidForMissingBlankOrUnknownLabID() {
+        XCTAssertEqual(FavoriteLabNews.relatedState(labID: nil, knownLabIDs: knownLabs, items: feed), .invalidLab)
+        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "   ", knownLabIDs: knownLabs, items: feed), .invalidLab)
+        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "vanished-lab", knownLabIDs: knownLabs, items: feed), .invalidLab,
+                       "a nonblank id that is not a known current lab is stale, not merely story-less")
     }
 
-    func test_relatedStateNoStoriesForUnknownLabOrEmptyFeed() {
-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "deepseek", items: feed), .noStories)
-        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "anthropic", items: []), .noStories)
+    func test_relatedStateNoStoriesForKnownLabWithoutStories() {
+        // deepseek is a known lab with no stories in the feed.
+        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "deepseek", knownLabIDs: knownLabs, items: feed), .noStories)
+        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "anthropic", knownLabIDs: knownLabs, items: []), .noStories)
     }
 
     func test_relatedStateCarriesAllStoriesForKnownLab() {
-        let state = FavoriteLabNews.relatedState(labID: "openai", items: feed)
+        let state = FavoriteLabNews.relatedState(labID: "openai", knownLabIDs: knownLabs, items: feed)
         guard case .stories(let items) = state else {
             return XCTFail("expected stories, got \(state)")
         }
         XCTAssertEqual(items.count, 4)
         XCTAssertTrue(items.allSatisfy { $0.lab == "openai" })
+    }
+
+    /// The real stale-activity handoff: the lab id failed to resolve
+    /// against the current labs list, so the request carries no name and
+    /// must land in the invalid state — never "no recent stories".
+    func test_staleActivityHandoffIsInvalidNotNoStories() {
+        let stale = RelatedNewsLab(id: "vanished-lab", resolvedName: nil)
+        XCTAssertEqual(FavoriteLabNews.relatedState(for: stale, items: feed), .invalidLab)
+        XCTAssertNil(stale.resolvedName, "the raw id is never available as a display name")
+
+        let resolvedNoStories = RelatedNewsLab(id: "deepseek", resolvedName: "DeepSeek")
+        XCTAssertEqual(FavoriteLabNews.relatedState(for: resolvedNoStories, items: feed), .noStories)
+
+        let resolvedWithStories = RelatedNewsLab(id: "openai", resolvedName: "OpenAI")
+        guard case .stories(let items) = FavoriteLabNews.relatedState(for: resolvedWithStories, items: feed) else {
+            return XCTFail("expected stories")
+        }
+        XCTAssertEqual(items.count, 4)
+
+        XCTAssertEqual(FavoriteLabNews.relatedState(for: nil, items: feed), .invalidLab)
     }
 }

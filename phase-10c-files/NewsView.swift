@@ -112,7 +112,8 @@ struct NewsView: View {
     /// (cached notice, failed-labs warning) as every other mode.
     @ViewBuilder
     private func relatedContent(_ lab: RelatedNewsLab, payload: NewsPayload) -> some View {
-        switch FavoriteLabNews.relatedState(labID: lab.id, items: payload.items) {
+        let displayName = lab.resolvedName ?? "this lab" // only shown in resolved states
+        switch FavoriteLabNews.relatedState(for: lab, items: payload.items) {
         case .invalidLab:
             cachedAwareEmptyState(
                 icon: "newspaper",
@@ -123,7 +124,7 @@ struct NewsView: View {
         case .noStories:
             cachedAwareEmptyState(
                 icon: "newspaper",
-                title: "Nothing new from \(lab.name)",
+                title: "Nothing new from \(displayName)",
                 message: "No recent stories from this lab.",
                 failedLabs: payload.failedLabs
             )
@@ -154,7 +155,7 @@ struct NewsView: View {
                             .font(.system(size: 13, weight: .semibold, design: .monospaced))
                             .tracking(1.2)
                             .foregroundStyle(Theme.ink)
-                        Text("Stories from \(lab.name).")
+                        Text("Stories from \(displayName).")
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.muted)
                             .textCase(nil)

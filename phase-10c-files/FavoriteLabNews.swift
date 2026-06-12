@@ -64,9 +64,10 @@ enum FavoriteLabNews {
     // ── Related stories (Phase 10C: Lab Activity → News) ─────────────────────
 
     enum RelatedState: Equatable {
-        /// The lab id is missing/blank — never guess; show a safe state.
+        /// The lab id is missing/blank, or doesn't resolve to a known
+        /// current lab (stale activity) — never guess; show a safe state.
         case invalidLab
-        /// Valid lab id, but the feed has no stories from it.
+        /// Valid, known lab id, but the feed has no stories from it.
         case noStories
         /// All stories from this lab, in API (newest-first) order — no
         /// per-lab cap: the user explicitly asked for this one lab.
@@ -78,12 +79,24 @@ enum FavoriteLabNews {
         items.filter { $0.lab == labID }
     }
 
-    static func relatedState(labID: String?, items: [NewsItem]) -> RelatedState {
-        guard let labID, !labID.trimmingCharacters(in: .whitespaces).isEmpty else {
+    /// A nonblank id is NOT enough: it must also be a known current lab,
+    /// otherwise a stale Lab Activity record would masquerade as a lab
+    /// that merely has no stories.
+    static func relatedState(labID: String?, knownLabIDs: Set<String>, items: [NewsItem]) -> RelatedState {
+        guard let labID,
+              !labID.trimmingCharacters(in: .whitespaces).isEmpty,
+              knownLabIDs.contains(labID) else {
             return .invalidLab
         }
         let matches = relatedStories(to: labID, in: items)
         return matches.isEmpty ? .noStories : .stories(matches)
+    }
+
+    /// The handoff-level decision: a request whose id failed to resolve
+    /// against the current labs list is invalid by construction.
+    static func relatedState(for request: RelatedNewsLab?, items: [NewsItem]) -> RelatedState {
+        guard let request, request.isResolved else { return .invalidLab }
+        return relatedState(labID: request.id, knownLabIDs: [request.id], items: items)
     }
 }
 
@@ -92,5 +105,11 @@ enum FavoriteLabNews {
 /// not persisted and not routed through any URL/deep-link machinery.
 struct RelatedNewsLab: Equatable {
     let id: String
-    let name: String
+    /// Display name resolved against the CURRENT labs list at handoff
+    /// time. nil means the activity's lab id no longer matches a known
+    /// lab — related mode shows "No related stories found." and the raw
+    /// id is never displayed as a name.
+    let resolvedName: String?
+
+    var isResolved: Bool { resolvedName != nil }
 }
