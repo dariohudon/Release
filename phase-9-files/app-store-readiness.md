@@ -1,7 +1,11 @@
 # App Store / TestFlight readiness — Release Model Radar iOS
 
-Status: readiness pass complete (Phase 9). The app is feature-locked for
-v1.0; everything below reflects the code as of
+Status: readiness REVIEW done (Phase 9); submission work remains. The app
+is feature-locked for v1.0, but before submission the following are still
+open: privacy policy URL, server/CDN log retention verification (decides
+the privacy label), App Store metadata entry, final app icon/assets,
+App Group setup in the Apple Developer portal, archive/validate/upload,
+and TestFlight review. Everything below reflects the code as of
 `phase-8b-widget-foundation-lock` plus this pass.
 
 ## Current app scope
@@ -86,11 +90,42 @@ v1.0; everything below reflects the code as of
 - No user-generated content, no third-party login, no web views with
   arbitrary navigation.
 
+## Privacy manifests
+
+Both bundles declare Apple privacy manifests (`PrivacyInfo.xcprivacy`):
+
+- App target: `ReleaseModelRadar/PrivacyInfo.xcprivacy`
+- Widget target: `RadarStatusWidget/PrivacyInfo.xcprivacy` — the widget
+  gets its own manifest because it compiles the shared snapshot store and
+  therefore itself uses the UserDefaults required-reason API via the App
+  Group.
+
+Each declares: no tracking, no tracking domains, no collected data types,
+and one accessed-API entry — `NSPrivacyAccessedAPICategoryUserDefaults`
+with reason `CA92.1` (reading/writing the app's own preferences and
+functionality data on device: Tune Radar answers, favourites, activity,
+reminder settings, widget snapshot).
+
 ## Privacy nutrition label
 
-Answer: **Data Not Collected** (all categories). Nothing is transmitted
-off-device except anonymous HTTPS GETs to the public API; no identifiers
-accompany them.
+**Privacy label status: pending server log retention verification.**
+
+Client-side inspection shows no accounts, no tracking SDKs, no analytics
+SDKs, no purchases, no user-submitted content, and no client-side
+identifiers intentionally sent. However, API requests inherently transmit
+the device's IP address and request metadata to the server, and Apple's
+disclosure rules turn on whether that server-side data is RETAINED:
+
+- If production logs (server, application, and any CDN/proxy in front of
+  it) are not retained beyond real-time servicing of the request,
+  "Data Not Collected" may be supportable under Apple's definition.
+- If IP addresses or request logs ARE retained, disclose the relevant
+  data types based on what is kept and how it is used (typically
+  Identifiers/Device ID → no; Usage Data / Diagnostics → depends on
+  retention purpose).
+
+Do not finalize the label until the retention policy of the production
+stack is confirmed and written down.
 
 ## App Store checklist
 
@@ -101,9 +136,15 @@ accompany them.
 - [ ] Apple Developer: register the App Group
       `group.com.octopusandson.ReleaseModelRadar` for the app id AND the
       widget id (`….RadarStatusWidget`); let Xcode manage signing.
-- [ ] Privacy nutrition label: "Data Not Collected".
+- [ ] Confirm production server / Cloudflare / application log retention
+      policy BEFORE submission — this decides the privacy label (see
+      Privacy nutrition label section).
+- [ ] Privacy nutrition label: set per the verified retention policy
+      ("Data Not Collected" only if logs aren't retained beyond
+      real-time servicing).
 - [ ] Privacy policy URL (can be a static page on
-      release.brightening.ca) stating the above.
+      release.brightening.ca) stating the above, including the
+      retention answer.
 - [ ] Screenshots: 6.9"/6.7" iPhone + 13" iPad sets (list below).
 - [ ] Age rating questionnaire (expect 4+).
 - [ ] Export compliance: uses only standard HTTPS — qualifies for the
@@ -149,7 +190,9 @@ accompany them.
   the three guidance layers, 3) Labs with favourites + Lab Activity
   sheet, 4) Definitions search, 5) News, 6) Settings (Tune Radar +
   reminder), 7) iPad split layout, 8) widget on home screen.
-- **Nutrition label notes:** see Privacy section — "Data Not Collected".
+- **Nutrition label notes:** see Privacy nutrition label section —
+  pending server log retention verification; do not pre-fill
+  "Data Not Collected".
 
 ## Known carry-forward backlog (post-ship)
 

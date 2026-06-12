@@ -86,16 +86,19 @@ final class RadarStatusSnapshotTests: XCTestCase {
     // ── Privacy guard (Phase 9) ───────────────────────────────────────────────
 
     /// The widget snapshot crosses the App Group boundary, so its field set
-    /// is part of the privacy story ("Data Not Collected"). Any new field
-    /// must fail this test and be consciously re-audited.
-    func test_snapshotEncodesOnlyAuditedSafeFields() throws {
+    /// is part of the privacy story. EXACT match: adding a field without
+    /// review fails, and so does silently dropping an audited one.
+    /// (checkedAt is non-nil here on purpose — JSONEncoder omits nil keys,
+    /// which would defeat the exactness check.)
+    func test_snapshotEncodesExactlyTheAuditedFieldSet() throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(snapshot(checkedAt: .now, failed: 1))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertTrue(
-            Set(object.keys).isSubset(of: ["checkedAt", "failedSources", "savedAt"]),
-            "unaudited snapshot fields: \(object.keys.sorted())"
+        XCTAssertEqual(
+            Set(object.keys),
+            ["checkedAt", "failedSources", "savedAt"],
+            "snapshot field set drifted from the audited set: \(object.keys.sorted())"
         )
     }
 
