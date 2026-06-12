@@ -1,0 +1,58 @@
+From b1d012147505a625555613dd616e7b46e531b40e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 15:37:30 +0000
+Subject: [PATCH] Derive iPad Radar detail from latest payload by selected id
+
+---
+ ReleaseModelRadar/Features/Models/ModelsView.swift | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index c1d517d..612f025 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -9,7 +9,7 @@ struct ModelsView: View {
+     @State private var labColors: [String: String] = [:]
+     @State private var labNames: [String: String] = [:]
+     @State private var path: [RadarModel] = []
+-    @State private var selectedModel: RadarModel? // split-layout selection
++    @State private var selectedModelID: String? // split-layout selection
+     @State private var cachedAt: Date?
+     @State private var isCached = false
+ 
+@@ -19,6 +19,14 @@ struct ModelsView: View {
+         AdaptiveLayout.isPad && hSizeClass == .regular
+     }
+ 
++    /// The split-layout detail is derived from the LATEST payload, so a
++    /// pull-to-refresh updates the open detail too. If the id vanished
++    /// upstream, this returns nil and the placeholder shows.
++    private var selectedModel: RadarModel? {
++        guard case .loaded(let payload) = state, let selectedModelID else { return nil }
++        return payload.models.first { $0.id == selectedModelID }
++    }
++
+     var body: some View {
+         Group {
+             if usesSplitLayout {
+@@ -73,7 +81,7 @@ struct ModelsView: View {
+     /// Open a model: select in the split layout, push on iPhone.
+     private func open(_ model: RadarModel) {
+         if usesSplitLayout {
+-            selectedModel = model
++            selectedModelID = model.id
+         } else {
+             path.append(model)
+         }
+@@ -127,7 +135,7 @@ struct ModelsView: View {
+                             ForEach(group) { model in
+                                 modelRowLink(model)
+                                     .listRowBackground(
+-                                        usesSplitLayout && selectedModel?.id == model.id
++                                        usesSplitLayout && selectedModelID == model.id
+                                             ? Theme.raised
+                                             : Theme.panel
+                                     )
+-- 
+2.43.0
+
