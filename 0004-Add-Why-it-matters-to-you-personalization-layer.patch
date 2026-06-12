@@ -1,0 +1,226 @@
+From c50d44249f2c97dd6ca75fdb9c4b502c88043ded Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 04:01:29 +0000
+Subject: [PATCH] Add Why it matters to you personalization layer
+
+---
+ README.md                                     |  7 +-
+ .../Features/Models/ModelDetailView.swift     |  1 +
+ .../TuneRadar/TuneRadarRecommendation.swift   | 96 +++++++++++++++++++
+ .../TuneRadar/WhyItMattersCard.swift          | 54 +++++++++++
+ docs/ios-mvp-plan.md                          |  5 +
+ 5 files changed, 161 insertions(+), 2 deletions(-)
+ create mode 100644 ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
+ create mode 100644 ReleaseModelRadar/TuneRadar/WhyItMattersCard.swift
+
+diff --git a/README.md b/README.md
+index ef19729..b7ded90 100644
+--- a/README.md
++++ b/README.md
+@@ -36,8 +36,11 @@ folder contents in. Every Swift file is self-contained.
+ On first launch a **Tune Radar** onboarding asks two questions (what you
+ mostly use AI for, what matters most). Answers are stored on-device only
+ (UserDefaults), are skippable, and can be edited or reset in Settings. They
+-are not used for recommendations yet — reserved for future "Why it matters
+-to you" guidance; public guidance stays "Useful for".
++power the on-device **"Why it matters to you"** section on each model's
++detail screen — one transparent, hedged sentence computed locally from your
++two answers and the model's public fields. Nothing leaves the device; public
++guidance stays "Useful for". Incomplete or reset preferences show a gentle
++Settings prompt instead.
+ 
+ The Radar toolbar shows the **last-checked badge** from `/api/update-status`:
+ "Checked Jun 11", "Stale · Jun 11" past 36 h (amber, like the web), or
+diff --git a/ReleaseModelRadar/Features/Models/ModelDetailView.swift b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+index b1462e9..df55991 100644
+--- a/ReleaseModelRadar/Features/Models/ModelDetailView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+@@ -14,6 +14,7 @@ struct ModelDetailView: View {
+                 listSection(title: "STRONG AT", items: model.strengths, accent: Theme.good)
+                 listSection(title: "WATCH-OUTS", items: model.watchouts, accent: Theme.warn)
+                 textSection(title: "USEFUL FOR", text: model.useFor)
++                WhyItMattersCard(model: model)
+                 sentimentSection
+                 if let url = URL(string: model.link) {
+                     Link(destination: url) {
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift b/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
+new file mode 100644
+index 0000000..f8c7866
+--- /dev/null
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
+@@ -0,0 +1,96 @@
++import Foundation
++
++/* "Why it matters to you" — the personalized layer.
++
++   A small, transparent, fully on-device mapping from (model fields ×
++   Tune Radar answers) to one hedged sentence. No network, no analytics,
++   no inference beyond the two choices the user made in onboarding/Settings.
++   "Useful for" remains the generic public guidance; this layer only ever
++   adds a personal lens on top of it. */
++
++enum TuneRadarRecommendation {
++
++    struct Explanation {
++        let text: String
++        /// True when at least one of the user's answers matched the model —
++        /// callers can use this for subtle styling, never for hiding.
++        let matchesSomething: Bool
++    }
++
++    /// Returns nil when preferences are incomplete (skipped onboarding,
++    /// after reset) — the UI then shows nothing or a gentle Settings prompt.
++    static func explanation(for model: RadarModel, preferences: TuneRadarPreferences) -> Explanation? {
++        guard let usage = preferences.usage, let priority = preferences.priority else {
++            return nil
++        }
++
++        let usageHit = usageMatches(usage, model)
++        let priorityHit = priorityMatches(priority, model)
++
++        let text: String
++        switch (usageHit, priorityHit) {
++        case (true, true):
++            text = "Because you selected \(usage.label) and \(priority.label), this release may be worth watching — both show up in what it's known for."
++        case (true, false):
++            text = "Because you selected \(usage.label), this release may be relevant to how you use AI — though it isn't an obvious match for \(priority.label.lowercased())."
++        case (false, true):
++            text = "This release lines up with \(priority.label.lowercased()) from your Tune Radar answers, though \(usageDescription(usage)) isn't its obvious focus."
++        case (false, false):
++            text = "Based on your Tune Radar answers (\(usage.label), \(priority.label)), this release doesn't obviously match your focus — fine to skim."
++        }
++
++        return Explanation(text: text, matchesSomething: usageHit || priorityHit)
++    }
++
++    // ── Matching (simple, inspectable keyword checks) ─────────────────────────
++
++    private static func haystack(_ model: RadarModel) -> String {
++        ([model.tags.joined(separator: " "), model.bestAt, model.useFor, model.tier]
++            + model.strengths)
++            .joined(separator: " ")
++            .lowercased()
++    }
++
++    private static func usageMatches(_ usage: UsageFocus, _ model: RadarModel) -> Bool {
++        let text = haystack(model)
++        switch usage {
++        case .writing:
++            return ["creative", "writing", "copy", "narrative", "draft"].contains(where: text.contains)
++        case .coding:
++            return ["coding", "code", "debug", "refactor", "engineering"].contains(where: text.contains)
++        case .research:
++            return ["reasoning", "research", "analysis", "math", "knowledge"].contains(where: text.contains)
++        case .automation:
++            return ["agent", "automation", "tool", "autonomous", "workflow"].contains(where: text.contains)
++        case .everything:
++            return true
++        }
++    }
++
++    private static func priorityMatches(_ priority: RadarPriority, _ model: RadarModel) -> Bool {
++        let text = haystack(model)
++        switch priority {
++        case .quality:
++            return model.tags.contains("flagship") || model.tags.contains("frontier")
++                || text.contains("flagship") || text.contains("frontier")
++        case .value:
++            return model.priceIn == "0"
++                || ["cheap", "value", "cost", "price", "free"].contains(where: text.contains)
++        case .speed:
++            return model.tags.contains("small")
++                || ["fast", "speed", "latency", "instant"].contains(where: text.contains)
++        case .openness:
++            return model.openWeight == true
++        }
++    }
++
++    private static func usageDescription(_ usage: UsageFocus) -> String {
++        switch usage {
++        case .writing: return "writing and creative work"
++        case .coding: return "coding and building"
++        case .research: return "research and analysis"
++        case .automation: return "agents and automation"
++        case .everything: return "general use"
++        }
++    }
++}
+diff --git a/ReleaseModelRadar/TuneRadar/WhyItMattersCard.swift b/ReleaseModelRadar/TuneRadar/WhyItMattersCard.swift
+new file mode 100644
+index 0000000..bdfd000
+--- /dev/null
++++ b/ReleaseModelRadar/TuneRadar/WhyItMattersCard.swift
+@@ -0,0 +1,54 @@
++import SwiftUI
++
++/* The "Why it matters to you" section for the model detail screen.
++
++   - Preferences complete  → a compact card with the local explanation and a
++     transparency footnote.
++   - Incomplete/skipped/reset → a single gentle line pointing at Settings.
++   Reads the Phase 4 store from the environment, so edits and resets in
++   Settings update this section live. */
++
++struct WhyItMattersCard: View {
++    let model: RadarModel
++    @EnvironmentObject private var store: TuneRadarPreferencesStore
++
++    var body: some View {
++        if let explanation = TuneRadarRecommendation.explanation(for: model, preferences: store.preferences) {
++            card(explanation)
++        } else {
++            prompt
++        }
++    }
++
++    private func card(_ explanation: TuneRadarRecommendation.Explanation) -> some View {
++        VStack(alignment: .leading, spacing: 7) {
++            Text("WHY IT MATTERS TO YOU")
++                .font(.system(size: 10, weight: .semibold, design: .monospaced))
++                .tracking(1.2)
++                .foregroundStyle(explanation.matchesSomething ? Theme.good : Theme.dim)
++            Text(explanation.text)
++                .font(.system(size: 13))
++                .foregroundStyle(Theme.ink)
++            Text("Based only on your Tune Radar choices, stored on this device. Adjust them in Settings.")
++                .font(.system(size: 10.5))
++                .foregroundStyle(Theme.dim)
++        }
++        .padding(12)
++        .frame(maxWidth: .infinity, alignment: .leading)
++        .background(
++            (explanation.matchesSomething ? Theme.good : Theme.dim).opacity(0.06),
++            in: RoundedRectangle(cornerRadius: 10)
++        )
++        .overlay(
++            RoundedRectangle(cornerRadius: 10)
++                .stroke((explanation.matchesSomething ? Theme.good : Theme.dim).opacity(0.25))
++        )
++    }
++
++    private var prompt: some View {
++        Text("Answer the two Tune Radar questions in Settings to see why a release matters to you.")
++            .font(.system(size: 12))
++            .foregroundStyle(Theme.dim)
++            .frame(maxWidth: .infinity, alignment: .leading)
++    }
++}
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 56f71b8..084bc11 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -68,6 +68,11 @@ persistence and favourites.
+ 
+ ## Phase 5
+ 
++- ✅ Personalized "Why it matters to you" layer — a small on-device mapping
++  from (model fields × Tune Radar answers) to one hedged sentence on the
++  model detail screen (`TuneRadarRecommendation.swift`). No backend, no
++  analytics; incomplete preferences show a gentle Settings prompt instead.
++  "Useful for" stays generic.
+ - Widgets (latest release, last-checked)
+ - Local notifications for "daily check completed" via `/api/update-status`
+ - Optional push notifications later (needs server work — out of scope)
+-- 
+2.43.0
+

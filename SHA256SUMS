@@ -1,2 +1,5 @@
-719b86422c4474a926da882c1722feafd5d793f4bdcfba5b10f6059435c8a781  release-model-radar-ios.tar.gz
+9241726b53aea8e5a60a709d5a2533927b12997772443de5b37b32252e3bc73a  0001-Add-native-release-timeline.patch
+69c2f53234502ba49a47d85286da2e5bc37c9f3f5f205e164e8b9b552ee3fc92  0002-Fix-iOS-MVP-review-blockers.patch
 65ac5e48b0166c949ec0856e3f3816f718eb3376c307419a16e37a19b5668e3e  0003-Add-Tune-Radar-onboarding-and-settings.patch
+d407de28f7d2245d2aeb20dd13f5b223d36fda14c4322a0e3a62eecc8425bc5c  0004-Add-Why-it-matters-to-you-personalization-layer.patch
+5d1e7a130b0795dde304564eb5e526d7ffae8218c5bb2c6a387d9e704b82c5e0  release-model-radar-ios.tar.gz
