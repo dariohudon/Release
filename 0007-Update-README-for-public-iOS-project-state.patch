@@ -1,0 +1,214 @@
+From 6ffe621e5dcc6e8a705441a8f0853e9204e830ab Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 04:55:44 +0000
+Subject: [PATCH] Update README for public iOS project state
+
+---
+ README.md            | 131 +++++++++++++++++++++++--------------------
+ docs/ios-mvp-plan.md |  35 +++++-------
+ 2 files changed, 83 insertions(+), 83 deletions(-)
+
+diff --git a/README.md b/README.md
+index b7ded90..e8ba73d 100644
+--- a/README.md
++++ b/README.md
+@@ -1,71 +1,78 @@
+ # Release Model Radar — iOS
+ 
+-Native SwiftUI client for [Release Model Radar](https://release.brightening.ca)
+-(Phase 3 of the roadmap).
+-The web app remains the source of truth; this app only consumes its public,
+-read-only JSON API. No keys, no auth, no mutation, no scraping.
++A native SwiftUI iOS app for tracking AI model releases. It consumes the
++public, read-only [Release Model Radar](https://release.brightening.ca) API.
++The web/API app remains the source of truth — this app does **not** own or
++duplicate the model catalog; catalog updates happen upstream and appear here
++on the next fetch.
++
++## Features
++
++| Tab | What it does |
++|---|---|
++| **Radar** | Release timeline (lab-colored dots, today marker, tap-to-detail) and the model list grouped by release state — Just shipped / Live now / On the horizon — with at-a-glance usefulness pills. Tap a model for the full detail screen: specs, strengths, watch-outs, guidance, community signal, lab link. |
++| **Labs** | Every tracked lab with its color and model count. |
++| **Definitions** | Searchable plain-English glossary of model-release language; tap a term to expand. |
++| **News** | Recent lab announcements, newest first, with official vs news-search source tags. |
++| **Settings** | Tune Radar preferences (view, edit, reset) and app info. |
++
++Also: a runtime **"Checked …" badge** in the Radar toolbar showing when the
++upstream radar last checked its sources, and a first-launch **Tune Radar
++onboarding** — two quick questions, fully skippable, editable or resettable
++later in Settings.
++
++## The three guidance layers
++
++| Layer | Where | Meaning |
++|---|---|---|
++| **USE / WATCH / IGNORE** | pill on list cards & detail | Quick public usefulness label, at a glance. **Not personalized** — every user sees the same label. |
++| **USEFUL FOR** | detail screen | The generic public reasoning behind that label. |
++| **WHY IT MATTERS TO YOU** | detail screen | The personalized layer: one short explanation computed **on this device** from your two Tune Radar choices. If preferences are skipped or reset, this section becomes a gentle Settings prompt instead. |
+ 
+-## Requirements
++## Privacy & local-only behaviour
+ 
+-- Xcode 16 or newer (the project uses the folder-synchronized project format)
+-- iOS 17.0+ deployment target
+-- No external dependencies — pure SwiftUI + Foundation
++- No account required; no sign-in exists.
++- No API keys in the app — every endpoint it reads is public.
++- Tune Radar preferences are stored locally in UserDefaults and are
++  **never sent to a server**.
++- Personalization is computed entirely on device; there is no backend
++  personalization, no analytics, no tracking.
++- The app is read-only: it has no mutation routes and cannot change
++  anything upstream.
+ 
+-## Run it
++## Development status
+ 
+-1. Open `ReleaseModelRadar.xcodeproj` in Xcode.
+-2. Pick an iPhone simulator (no signing needed) and press ⌘R.
+-3. To run on a device, select your personal team under
+-   Signing & Capabilities → Team.
++**Locked**
+ 
+-If Xcode ever refuses the project file (it was authored outside Xcode):
+-create a fresh iOS App project named `ReleaseModelRadar` (SwiftUI, Swift),
+-delete its generated source files, and drag this repo's `ReleaseModelRadar/`
+-folder contents in. Every Swift file is self-contained.
++- Phase 3 — iOS MVP baseline (`mvp-ios-phase-3-lock`)
++- Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
+ 
+-## What it shows
++**In review**
+ 
+-| Tab | API | Notes |
+-|---|---|---|
+-| Radar | `/api/models` + `/api/labs` | Release timeline (lab-colored dots, dashed horizon dots, today marker — tap a dot for the detail); sections: Just shipped / Live now / On the horizon; verdict pills; tap for the full read-out (strengths, watch-outs, pricing, sentiment, link) |
+-| Labs | `/api/labs` | Name, brand color, model count |
+-| Definitions | `/api/definitions` | Search across term / aliases / definitions; tap to expand Plain English · Why it matters · Example |
+-| News | `/api/news` | Newest first, official vs news-search tags, unreachable labs notice, outbound links |
+-| Settings | local only | Tune Radar preferences (two questions, UserDefaults), edit/reset, About |
+-
+-On first launch a **Tune Radar** onboarding asks two questions (what you
+-mostly use AI for, what matters most). Answers are stored on-device only
+-(UserDefaults), are skippable, and can be edited or reset in Settings. They
+-power the on-device **"Why it matters to you"** section on each model's
+-detail screen — one transparent, hedged sentence computed locally from your
+-two answers and the model's public fields. Nothing leaves the device; public
+-guidance stays "Useful for". Incomplete or reset preferences show a gentle
+-Settings prompt instead.
+-
+-The Radar toolbar shows the **last-checked badge** from `/api/update-status`:
+-"Checked Jun 11", "Stale · Jun 11" past 36 h (amber, like the web), or
+-"Not checked yet" when the API has no run recorded. Tap it for the full
+-detail line.
+-
+-## Architecture (MVP)
+-
+-- `API/APIClient.swift` — one actor, async/await, shared `{ ok, generatedAt,
+-  count, data }` envelope decoding, 15 s timeouts. The last successful
+-  response per endpoint is cached **in memory only** and used as a fallback
+-  when the network fails (persistent cache is Phase 4).
+-- `API/APIModels.swift` — `Decodable` mirrors of the web app's TypeScript
+-  interfaces. If the web data model changes, update here.
+-- Each tab owns its `Loadable<T>` state (`loading / loaded / failed`) with
+-  pull-to-refresh and a Retry button on errors.
+-- `Theme.swift` — the web app's `radar.css` dark-navy tokens as SwiftUI colors.
+-
+-See `docs/ios-mvp-plan.md` for the phase plan.
+-
+-## Out of scope for this MVP (deliberately)
+-
+-App Store signing, widgets, push notifications, accounts/auth, favourites,
+-and persistent offline cache — see Phases 4–5 in the plan.
+-
+-This app is **Phase 3** of the Release Model Radar roadmap. App Store
+-signing/distribution is not set up yet; the MVP baseline can be locked
+-after review — signing is a release task, not an MVP task.
++- Phase 5 — Personalized recommendation layer ("Why it matters to you") —
++  implemented on `ios-personalized-recommendation-layer`, awaiting review
++  before merge/lock.
++
++**Future**
++
++- Phase 6 — Persistent offline cache + favourites
++- Phase 7 — iPad polish / NavigationSplitView
++- Phase 8 — Widgets + daily check notifications
++- Phase 9 — App Store / TestFlight readiness
++
++## Developer notes
++
++- Requirements: Xcode 16+, iOS 17.0+ deployment target, no external
++  dependencies (pure SwiftUI + Foundation).
++- Open `ReleaseModelRadar.xcodeproj`, pick an iPhone simulator, ⌘R.
++  Simulators need no signing; a device needs your team under
++  Signing & Capabilities.
++- **No server setup required** — the app talks to the public web/API
++  project, which is developed and deployed separately.
++- Do not add secrets or API keys to this app; nothing it does needs them.
++- If Xcode ever refuses the project file (it was authored outside Xcode):
++  create a fresh iOS App project named `ReleaseModelRadar` and drag this
++  repo's `ReleaseModelRadar/` folder contents in — every Swift file is
++  self-contained.
++
++Architecture notes and the phase plan live in `docs/ios-mvp-plan.md`.
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index c381499..5c5bf25 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -53,29 +53,22 @@ ReleaseModelRadar/
+ ```
+ 
+ State pattern: each screen owns `@State var state: Loadable<Payload>` and a
+-`load(force:)` — no view-model layer yet; introduce one when Phase 4 adds
++`load(force:)` — no view-model layer yet; introduce one when Phase 6 adds
+ persistence and favourites.
+ 
+-## Phase 4
++## Roadmap
+ 
+-- ✅ Settings tab + Tune Radar onboarding (two questions, UserDefaults-only,
+-  skippable, editable/resettable; answers power the on-device
+-  "Why it matters to you" guidance shipped in Phase 5)
+-- Persistent offline cache (store last good JSON per endpoint on disk)
+-- Saved/favourite models (local only)
+-- Better iPad layout (NavigationSplitView)
+-- Background refresh (BGAppRefreshTask) if appropriate
+-
+-## Phase 5
+-
+-- ✅ Personalized "Why it matters to you" layer — a small on-device mapping
+-  from (model fields × Tune Radar answers) to one hedged sentence on the
+-  model detail screen (`TuneRadarRecommendation.swift`). No backend, no
+-  analytics; incomplete preferences show a gentle Settings prompt instead.
+-  "Useful for" stays generic.
+-- Widgets (latest release, last-checked)
+-- Local notifications for "daily check completed" via `/api/update-status`
+-- Optional push notifications later (needs server work — out of scope)
++- Phase 3 — ✅ locked: iOS MVP baseline (`mvp-ios-phase-3-lock`)
++- Phase 4 — ✅ locked: Settings tab + Tune Radar onboarding
++  (`phase-4-tune-radar-settings-lock`); two questions, UserDefaults-only,
++  skippable, editable/resettable
++- Phase 5 — in review: personalized "Why it matters to you" layer
++  (`TuneRadarRecommendation.swift`), computed on device from the Tune Radar
++  answers; no backend, no analytics
++- Phase 6 — persistent offline cache + favourites (local only)
++- Phase 7 — iPad polish / NavigationSplitView
++- Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
++- Phase 9 — App Store / TestFlight readiness
+ 
+ ## Appearance note
+ 
+@@ -83,7 +76,7 @@ The app intentionally sets `.preferredColorScheme(.dark)`: every design
+ token mirrors the web app's dark navy palette, and system-light chrome over
+ those hardcoded surfaces would render broken (dark text on dark panels).
+ Honouring the system appearance properly means a semantic/light token set —
+-a deliberate Phase 4+ task, not a quick toggle.
++a deliberate Phase 6+ task, not a quick toggle.
+ 
+ ## Release status
+ 
+-- 
+2.43.0
+
