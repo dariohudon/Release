@@ -19,6 +19,17 @@ open ~/Projects/release-model-radar-ios/ReleaseModelRadar.xcodeproj
 The extracted folder contains the full project including its .git history
 (initial commit 108ea4c "Create Release Model Radar iOS MVP").
 
+## Already cloned the project? Apply just the timeline commit
+
+```bash
+cd ~/Projects/release-model-radar-ios
+git checkout -b ios-release-timeline
+git am /path/to/0001-Add-native-release-timeline.patch
+```
+
+The tarball alternative contains both commits already, with the
+`ios-release-timeline` branch checked out.
+
 ## Clean up afterwards
 
 ```bash
