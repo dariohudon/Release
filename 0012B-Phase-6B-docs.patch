@@ -1,0 +1,73 @@
+From ec00a33afe351abdef28c9c332332f08a0ed7320 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 07:17:01 +0000
+Subject: [PATCH] Update Phase 6B documentation
+
+---
+ README.md            |  9 ++++++---
+ docs/ios-mvp-plan.md | 20 +++++++++++++-------
+ 2 files changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/README.md b/README.md
+index 475e9fb..8b3fc66 100644
+--- a/README.md
++++ b/README.md
+@@ -60,11 +60,12 @@ being shown (even when the cached list is empty).
+ - Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
+ - Phase 5 — Personalized recommendation layer (`phase-5-personalized-recommendation-lock`)
+ 
++- Phase 6 — Offline cache + lab favourites (`phase-6-offline-cache-lab-favourites-lock`)
++
+ **In review**
+ 
+-- Phase 6 — Persistent offline cache + lab favourites with in-app
+-  new-info indicators — implemented on `ios-offline-cache-lab-favourites`;
+-  code review passed, awaiting final manual QA before merge/lock.
++- Phase 6B — Cache/favourites/accessibility hardening + unit-test target —
++  implemented on `ios-cache-favourites-hardening`, awaiting review.
+ 
+ **Future**
+ 
+@@ -79,6 +80,8 @@ being shown (even when the cached list is empty).
+ - Open `ReleaseModelRadar.xcodeproj`, pick an iPhone simulator, ⌘R.
+   Simulators need no signing; a device needs your team under
+   Signing & Capabilities.
++- Run the unit tests with ⌘U (`ReleaseModelRadarTests` — cache policy,
++  disk persistence, favourites and indicator behaviour).
+ - **No server setup required** — the app talks to the public web/API
+   project, which is developed and deployed separately.
+ - Do not add secrets or API keys to this app; nothing it does needs them.
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 7521120..cc2e289 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -64,13 +64,19 @@ later phase genuinely needs it.
+   skippable, editable/resettable
+ - Phase 5 — ✅ locked: personalized "Why it matters to you" layer
+   (`phase-5-personalized-recommendation-lock`)
+-- Phase 6 — implemented, code review passed, awaiting final manual QA +
+-  lock: persistent offline cache (last-good responses on disk via
+-  `LocalAPIResponseCache`, written only after successful decode, gentle
+-  "Offline — last updated …" notices even for empty cached payloads) +
+-  lab favourites with in-app new-info indicators (`LabFavoritesStore`,
+-  UserDefaults-only, no system notifications, no permission prompts,
+-  no backend sync)
++- Phase 6 — ✅ locked: persistent offline cache (last-good responses on
++  disk via `LocalAPIResponseCache`, written only after successful decode,
++  gentle "Offline — last updated …" notices even for empty cached
++  payloads) + lab favourites with in-app new-info indicators
++  (`LabFavoritesStore`, UserDefaults-only, no system notifications, no
++  permission prompts, no backend sync)
++  (`phase-6-offline-cache-lab-favourites-lock`)
++- Phase 6B — in review: hardening — `ReleaseModelRadarTests` unit-test
++  target (cache policy, disk persistence, favourites/indicator behaviour),
++  SHA-256 collision-resistant cache filenames, automatic cleanup of
++  favourites whose lab id disappears upstream, cached-data note in the
++  update-status detail alert, and VoiceOver value/hint/selected traits on
++  the favourite star
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+-- 
+2.43.0
+

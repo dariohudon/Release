@@ -1,2 +1,5 @@
-f129b894594419ccbd3d4e2759ae75d421de54a235cf2070d253a53b3ead0cb4  0012-Add-Phase-6B-hardening.patch
-eae53baa4957c3a3b5bbdee1e5e98157d962bd5a3615d88293a001571df160f7  release-model-radar-ios.tar.gz
+9ce80ee355a93aabd2cafa8907513d622a785cde6b7531ebc60fceb6b91c9520  0012A-Phase-6B-code-and-tests.patch
+3403bb384b9a505f1910bbd7d44eb1216f3d2648e1b9b918794f400b1f9ae380  0012B-Phase-6B-docs.patch
+d075fb60a3a3405aa07f0a30e9f6b504e30f200ff2e068d1a774adf5067397bc  0012C-pbxproj-test-target.patch
+582824c7ff6137518686bb7049386efa13b915ae59e19555050df65151ecbfa3  project.pbxproj
+959cc761638289acb08055a8ae6356cd2abb6c83c691b9aab9cba6f4655624d6  release-model-radar-ios.tar.gz

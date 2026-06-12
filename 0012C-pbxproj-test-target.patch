@@ -1,0 +1,223 @@
+From 2018e4546569660d84fc8d3ee9bfd3922961f839 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 07:17:01 +0000
+Subject: [PATCH] Add ReleaseModelRadarTests target to project file
+
+---
+ ReleaseModelRadar.xcodeproj/project.pbxproj | 120 ++++++++++++++++++++
+ 1 file changed, 120 insertions(+)
+
+diff --git a/ReleaseModelRadar.xcodeproj/project.pbxproj b/ReleaseModelRadar.xcodeproj/project.pbxproj
+index 7000c4d..eb03720 100644
+--- a/ReleaseModelRadar.xcodeproj/project.pbxproj
++++ b/ReleaseModelRadar.xcodeproj/project.pbxproj
+@@ -8,14 +8,30 @@
+ 
+ /* Begin PBXFileReference section */
+ 		A10000000000000000000004 /* ReleaseModelRadar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReleaseModelRadar.app; sourceTree = BUILT_PRODUCTS_DIR; };
++		B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReleaseModelRadarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+ /* End PBXFileReference section */
+ 
++/* Begin PBXContainerItemProxy section */
++		B2000000000000000000000008 /* PBXContainerItemProxy */ = {
++			isa = PBXContainerItemProxy;
++			containerPortal = A10000000000000000000006 /* Project object */;
++			proxyType = 1;
++			remoteGlobalIDString = A10000000000000000000005;
++			remoteInfo = ReleaseModelRadar;
++		};
++/* End PBXContainerItemProxy section */
++
+ /* Begin PBXFileSystemSynchronizedRootGroup section */
+ 		A10000000000000000000002 /* ReleaseModelRadar */ = {
+ 			isa = PBXFileSystemSynchronizedRootGroup;
+ 			path = ReleaseModelRadar;
+ 			sourceTree = "<group>";
+ 		};
++		B2000000000000000000000001 /* ReleaseModelRadarTests */ = {
++			isa = PBXFileSystemSynchronizedRootGroup;
++			path = ReleaseModelRadarTests;
++			sourceTree = "<group>";
++		};
+ /* End PBXFileSystemSynchronizedRootGroup section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -26,6 +42,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000005 /* Frameworks */ = {
++			isa = PBXFrameworksBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXFrameworksBuildPhase section */
+ 
+ /* Begin PBXGroup section */
+@@ -33,6 +56,7 @@
+ 			isa = PBXGroup;
+ 			children = (
+ 				A10000000000000000000002 /* ReleaseModelRadar */,
++				B2000000000000000000000001 /* ReleaseModelRadarTests */,
+ 				A10000000000000000000003 /* Products */,
+ 			);
+ 			sourceTree = "<group>";
+@@ -41,6 +65,7 @@
+ 			isa = PBXGroup;
+ 			children = (
+ 				A10000000000000000000004 /* ReleaseModelRadar.app */,
++				B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */,
+ 			);
+ 			name = Products;
+ 			sourceTree = "<group>";
+@@ -70,8 +95,39 @@
+ 			productReference = A10000000000000000000004 /* ReleaseModelRadar.app */;
+ 			productType = "com.apple.product-type.application";
+ 		};
++		B2000000000000000000000003 /* ReleaseModelRadarTests */ = {
++			isa = PBXNativeTarget;
++			buildConfigurationList = B2000000000000000000000009 /* Build configuration list for PBXNativeTarget "ReleaseModelRadarTests" */;
++			buildPhases = (
++				B2000000000000000000000004 /* Sources */,
++				B2000000000000000000000005 /* Frameworks */,
++				B2000000000000000000000006 /* Resources */,
++			);
++			buildRules = (
++			);
++			dependencies = (
++				B2000000000000000000000007 /* PBXTargetDependency */,
++			);
++			fileSystemSynchronizedGroups = (
++				B2000000000000000000000001 /* ReleaseModelRadarTests */,
++			);
++			name = ReleaseModelRadarTests;
++			packageProductDependencies = (
++			);
++			productName = ReleaseModelRadarTests;
++			productReference = B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */;
++			productType = "com.apple.product-type.bundle.unit-test";
++		};
+ /* End PBXNativeTarget section */
+ 
++/* Begin PBXTargetDependency section */
++		B2000000000000000000000007 /* PBXTargetDependency */ = {
++			isa = PBXTargetDependency;
++			target = A10000000000000000000005 /* ReleaseModelRadar */;
++			targetProxy = B2000000000000000000000008 /* PBXContainerItemProxy */;
++		};
++/* End PBXTargetDependency section */
++
+ /* Begin PBXProject section */
+ 		A10000000000000000000006 /* Project object */ = {
+ 			isa = PBXProject;
+@@ -83,6 +139,10 @@
+ 					A10000000000000000000005 = {
+ 						CreatedOnToolsVersion = 16.0;
+ 					};
++					B2000000000000000000000003 = {
++						CreatedOnToolsVersion = 16.0;
++						TestTargetID = A10000000000000000000005;
++					};
+ 				};
+ 			};
+ 			buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXProject "ReleaseModelRadar" */;
+@@ -101,6 +161,7 @@
+ 			projectRoot = "";
+ 			targets = (
+ 				A10000000000000000000005 /* ReleaseModelRadar */,
++				B2000000000000000000000003 /* ReleaseModelRadarTests */,
+ 			);
+ 		};
+ /* End PBXProject section */
+@@ -113,6 +174,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000006 /* Resources */ = {
++			isa = PBXResourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXResourcesBuildPhase section */
+ 
+ /* Begin PBXSourcesBuildPhase section */
+@@ -123,6 +191,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000004 /* Sources */ = {
++			isa = PBXSourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXSourcesBuildPhase section */
+ 
+ /* Begin XCBuildConfiguration section */
+@@ -299,6 +374,42 @@
+ 			};
+ 			name = Release;
+ 		};
++		B200000000000000000000000A /* Debug */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				BUNDLE_LOADER = "$(TEST_HOST)";
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadarTests;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SWIFT_EMIT_LOC_STRINGS = NO;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReleaseModelRadar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ReleaseModelRadar";
++			};
++			name = Debug;
++		};
++		B200000000000000000000000B /* Release */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				BUNDLE_LOADER = "$(TEST_HOST)";
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadarTests;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SWIFT_EMIT_LOC_STRINGS = NO;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReleaseModelRadar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ReleaseModelRadar";
++			};
++			name = Release;
++		};
+ /* End XCBuildConfiguration section */
+ 
+ /* Begin XCConfigurationList section */
+@@ -320,6 +431,15 @@
+ 			defaultConfigurationIsVisible = 0;
+ 			defaultConfigurationName = Release;
+ 		};
++		B2000000000000000000000009 /* Build configuration list for PBXNativeTarget "ReleaseModelRadarTests" */ = {
++			isa = XCConfigurationList;
++			buildConfigurations = (
++				B200000000000000000000000A /* Debug */,
++				B200000000000000000000000B /* Release */,
++			);
++			defaultConfigurationIsVisible = 0;
++			defaultConfigurationName = Release;
++		};
+ /* End XCConfigurationList section */
+ 	};
+ 	rootObject = A10000000000000000000006 /* Project object */;
+-- 
+2.43.0
+
