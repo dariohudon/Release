@@ -1,0 +1,71 @@
+From 6d16e2390f749059491b8225192db53a425dcc21 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 04:19:52 +0000
+Subject: [PATCH] Fix Phase 5 Tune Radar settings copy
+
+---
+ ReleaseModelRadar/Features/Settings/SettingsView.swift    | 2 +-
+ ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift | 4 ++--
+ ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift    | 2 +-
+ docs/ios-mvp-plan.md                                      | 4 ++--
+ 4 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Settings/SettingsView.swift b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+index 4660a33..a2f2429 100644
+--- a/ReleaseModelRadar/Features/Settings/SettingsView.swift
++++ b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+@@ -27,7 +27,7 @@ struct SettingsView: View {
+                 } header: {
+                     Text("Tune Radar")
+                 } footer: {
+-                    Text("Stored only on this device. A future update will use these to explain why a release matters to you; public guidance stays generic (\u{201C}Useful for\u{201D}).")
++                    Text("Tune Radar preferences stay on this device and help explain why a model may matter to you. They are never sent to a server; public guidance stays generic (\u{201C}Useful for\u{201D}).")
+                         .foregroundStyle(Theme.dim)
+                 }
+                 .listRowBackground(Theme.panel)
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+index 07bce5b..bfad992 100644
+--- a/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+@@ -1,8 +1,8 @@
+ import SwiftUI
+ 
+ /* First-launch "Tune Radar" onboarding: exactly two questions, both
+-   skippable. Answers stay on this device and are not used for anything yet —
+-   they will power future "Why it matters to you" guidance. */
++   skippable. Answers stay on this device and power the local
++   "Why it matters to you" section on model detail screens. */
+ 
+ struct TuneRadarOnboardingView: View {
+     @EnvironmentObject private var store: TuneRadarPreferencesStore
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift b/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
+index 35ce866..279f95f 100644
+--- a/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
+@@ -2,7 +2,7 @@ import Foundation
+ 
+ /* Tune Radar preferences — the two onboarding questions.
+    Local-only: stored in UserDefaults via TuneRadarPreferencesStore, never
+-   sent anywhere. These will power future "Why it matters to you" guidance;
++   sent anywhere. They power the on-device "Why it matters to you" guidance;
+    public generic guidance stays "Useful for". */
+ 
+ enum UsageFocus: String, CaseIterable, Identifiable, Codable {
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 084bc11..c381499 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -59,8 +59,8 @@ persistence and favourites.
+ ## Phase 4
+ 
+ - ✅ Settings tab + Tune Radar onboarding (two questions, UserDefaults-only,
+-  skippable, editable/resettable; no recommendations yet — answers are
+-  reserved for future "Why it matters to you" guidance)
++  skippable, editable/resettable; answers power the on-device
++  "Why it matters to you" guidance shipped in Phase 5)
+ - Persistent offline cache (store last good JSON per endpoint on disk)
+ - Saved/favourite models (local only)
+ - Better iPad layout (NavigationSplitView)
+-- 
+2.43.0
+
