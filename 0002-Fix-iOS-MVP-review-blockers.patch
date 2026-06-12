@@ -1,0 +1,511 @@
+From 9b86f66e9b5fae2b59abb71c7141f0777cf8896d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 01:48:07 +0000
+Subject: [PATCH] Fix iOS MVP review blockers
+
+---
+ README.md                                     |   9 ++++-
+ ReleaseModelRadar/API/APIClient.swift         |  13 +++++-
+ ReleaseModelRadar/API/APIModels.swift         |   7 +++-
+ .../AppIcon.appiconset/AppIcon.png            | Bin 0 -> 13458 bytes
+ .../AppIcon.appiconset/Contents.json          |   1 +
+ .../Components/ReleaseTimelineView.swift      |   2 +-
+ ReleaseModelRadar/Components/StateViews.swift |  37 ++++++++++++++++++
+ .../Features/Labs/LabsView.swift              |   7 ++++
+ .../Features/Models/ModelDetailView.swift     |  25 ------------
+ .../Features/Models/ModelsView.swift          |   7 ++++
+ .../Features/News/NewsView.swift              |   7 ++++
+ docs/ios-mvp-plan.md                          |  22 +++++++++--
+ 12 files changed, 101 insertions(+), 36 deletions(-)
+ create mode 100644 ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+diff --git a/README.md b/README.md
+index 2371ff6..5854ab7 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,7 @@
+ # Release Model Radar — iOS
+ 
+-Native SwiftUI client for [Release Model Radar](https://release.brightening.ca).
++Native SwiftUI client for [Release Model Radar](https://release.brightening.ca)
++(Phase 3 of the roadmap).
+ The web app remains the source of truth; this app only consumes its public,
+ read-only JSON API. No keys, no auth, no mutation, no scraping.
+ 
+@@ -53,4 +54,8 @@ See `docs/ios-mvp-plan.md` for the phase plan.
+ ## Out of scope for this MVP (deliberately)
+ 
+ App Store signing, widgets, push notifications, accounts/auth, favourites,
+-and persistent offline cache — see Phases 2–3 in the plan.
++and persistent offline cache — see Phases 4–5 in the plan.
++
++This app is **Phase 3** of the Release Model Radar roadmap. App Store
++signing/distribution is not set up yet; the MVP baseline can be locked
++after review — signing is a release task, not an MVP task.
+diff --git a/ReleaseModelRadar/API/APIClient.swift b/ReleaseModelRadar/API/APIClient.swift
+index 351a76a..77fedab 100644
+--- a/ReleaseModelRadar/API/APIClient.swift
++++ b/ReleaseModelRadar/API/APIClient.swift
+@@ -52,8 +52,11 @@ actor APIClient {
+                 }
+                 throw APIError.http(http.statusCode)
+             }
++            // Decode FIRST — only a response that fully decodes counts as
++            // "last successful" and earns a place in the fallback cache.
++            let value: T = try decodeEnvelope(data)
+             memoryCache[path] = data
+-            return try decodeEnvelope(data)
++            return value
+         } catch let error as APIError {
+             throw error
+         } catch {
+@@ -65,7 +68,13 @@ actor APIClient {
+     }
+ 
+     private func decodeEnvelope<T: Decodable>(_ data: Data) throws -> T {
+-        guard let envelope = try? JSONDecoder().decode(Envelope<T>.self, from: data) else {
++        let envelope: Envelope<T>
++        do {
++            envelope = try JSONDecoder().decode(Envelope<T>.self, from: data)
++        } catch {
++            #if DEBUG
++            print("APIClient: envelope decode failed —", error)
++            #endif
+             throw APIError.decoding
+         }
+         guard envelope.ok, let payload = envelope.data else {
+diff --git a/ReleaseModelRadar/API/APIModels.swift b/ReleaseModelRadar/API/APIModels.swift
+index c6ae817..9e87d1a 100644
+--- a/ReleaseModelRadar/API/APIModels.swift
++++ b/ReleaseModelRadar/API/APIModels.swift
+@@ -5,9 +5,11 @@ import Foundation
+    lib/news/fetchNews.ts, and lib/api/types.ts. */
+ 
+ /// Shared response envelope: { ok, generatedAt, count, data } / { ok:false, error }.
++/// Everything except `ok` is tolerant of omission so a slightly off-spec
++/// failure envelope still decodes instead of masking the real error.
+ struct Envelope<T: Decodable>: Decodable {
+     let ok: Bool
+-    let generatedAt: String
++    let generatedAt: String?
+     let count: Int?
+     let data: T?
+     let error: String?
+@@ -42,7 +44,8 @@ struct RadarModel: Decodable, Identifiable, Hashable {
+     let strengths: [String]
+     let watchouts: [String]
+     let useFor: String
+-    let forDario: String?
++    // Note: the API also serves a personalized `forDario` field; this app
++    // deliberately does not decode or render it — public/product-safe only.
+     let sentiment: Sentiment
+     let link: String
+     let openWeight: Bool?
+diff --git a/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/AppIcon.png b/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..58b5b28f48eef290bc4bc3fc7cd61ad6efc6f40f
+GIT binary patch
+literal 13458
+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
+D2d9BI
+
+literal 0
+HcmV?d00001
+
+diff --git a/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/Contents.json b/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/Contents.json
+index 13613e3..cefcc87 100644
+--- a/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/Contents.json
++++ b/ReleaseModelRadar/Assets.xcassets/AppIcon.appiconset/Contents.json
+@@ -1,6 +1,7 @@
+ {
+   "images" : [
+     {
++      "filename" : "AppIcon.png",
+       "idiom" : "universal",
+       "platform" : "ios",
+       "size" : "1024x1024"
+diff --git a/ReleaseModelRadar/Components/ReleaseTimelineView.swift b/ReleaseModelRadar/Components/ReleaseTimelineView.swift
+index eff71e3..4101296 100644
+--- a/ReleaseModelRadar/Components/ReleaseTimelineView.swift
++++ b/ReleaseModelRadar/Components/ReleaseTimelineView.swift
+@@ -211,7 +211,7 @@ struct ReleaseTimelineView: View {
+                         }
+                     }
+                     .frame(width: 13, height: 13)
+-                    .frame(width: 34, height: 34) // generous thumb target
++                    .frame(width: 44, height: 44) // HIG-minimum tap target; visual dot stays 13pt
+                     .contentShape(Circle())
+                 }
+                 .buttonStyle(.plain)
+diff --git a/ReleaseModelRadar/Components/StateViews.swift b/ReleaseModelRadar/Components/StateViews.swift
+index 50f9fca..e0a803f 100644
+--- a/ReleaseModelRadar/Components/StateViews.swift
++++ b/ReleaseModelRadar/Components/StateViews.swift
+@@ -42,6 +42,43 @@ struct ErrorView: View {
+     }
+ }
+ 
++/// Centered empty state for lists that loaded successfully but have no items.
++struct EmptyStateView: View {
++    let icon: String
++    let title: String
++    let message: String
++    var retry: (() -> Void)? = nil
++
++    var body: some View {
++        VStack(spacing: 12) {
++            Image(systemName: icon)
++                .font(.title)
++                .foregroundStyle(Theme.dim)
++            Text(title)
++                .font(.headline)
++                .foregroundStyle(Theme.ink)
++            Text(message)
++                .font(.subheadline)
++                .foregroundStyle(Theme.muted)
++                .multilineTextAlignment(.center)
++                .padding(.horizontal, 36)
++            if let retry {
++                Button(action: retry) {
++                    Text("Retry")
++                        .font(.subheadline.weight(.semibold))
++                        .padding(.horizontal, 22)
++                        .padding(.vertical, 9)
++                        .background(Theme.raised, in: RoundedRectangle(cornerRadius: 9))
++                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Theme.line))
++                }
++                .buttonStyle(.plain)
++            }
++        }
++        .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .background(Theme.bg)
++    }
++}
++
+ /// Small uppercase mono pill, the iOS cousin of the web app's tags.
+ struct Pill: View {
+     let text: String
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 6dbbf1d..52b275b 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -20,6 +20,13 @@ struct LabsView: View {
+             LoadingView()
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
++        case .loaded(let payload) where payload.labs.isEmpty:
++            EmptyStateView(
++                icon: "building.2",
++                title: "No labs available",
++                message: "Lab data may be temporarily unavailable.",
++                retry: { Task { await load(force: true) } }
++            )
+         case .loaded(let payload):
+             List(payload.labs) { lab in
+                 HStack(spacing: 12) {
+diff --git a/ReleaseModelRadar/Features/Models/ModelDetailView.swift b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+index 9c2cdc6..965b575 100644
+--- a/ReleaseModelRadar/Features/Models/ModelDetailView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+@@ -14,9 +14,6 @@ struct ModelDetailView: View {
+                 listSection(title: "STRONG AT", items: model.strengths, accent: Theme.good)
+                 listSection(title: "WATCH-OUTS", items: model.watchouts, accent: Theme.warn)
+                 textSection(title: "USE IT FOR", text: model.useFor)
+-                if let forDario = model.forDario {
+-                    forDarioBox(forDario)
+-                }
+                 sentimentSection
+                 if let url = URL(string: model.link) {
+                     Link(destination: url) {
+@@ -117,28 +114,6 @@ struct ModelDetailView: View {
+         }
+     }
+ 
+-    private func forDarioBox(_ text: String) -> some View {
+-        HStack(alignment: .top, spacing: 8) {
+-            Image(systemName: "sparkles")
+-                .font(.system(size: 12))
+-                .foregroundStyle(Theme.good)
+-                .padding(.top, 2)
+-            VStack(alignment: .leading, spacing: 3) {
+-                Text("FOR YOUR WORK")
+-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+-                    .tracking(1.2)
+-                    .foregroundStyle(Theme.good)
+-                Text(text)
+-                    .font(.system(size: 13))
+-                    .foregroundStyle(Theme.ink)
+-            }
+-        }
+-        .padding(12)
+-        .frame(maxWidth: .infinity, alignment: .leading)
+-        .background(Theme.good.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.good.opacity(0.25)))
+-    }
+-
+     private var sentimentSection: some View {
+         VStack(alignment: .leading, spacing: 8) {
+             HStack {
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index 544b7fd..fa4d9f2 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -29,6 +29,13 @@ struct ModelsView: View {
+             LoadingView()
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
++        case .loaded(let payload) where payload.models.isEmpty:
++            EmptyStateView(
++                icon: "dot.radiowaves.left.and.right",
++                title: "No models available",
++                message: "The catalog is curated and may be temporarily unavailable.",
++                retry: { Task { await load(force: true) } }
++            )
+         case .loaded(let payload):
+             List {
+                 // Release timeline first, like the web app: header → timeline → cards
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 334e9e5..8463c7f 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -20,6 +20,13 @@ struct NewsView: View {
+             LoadingView()
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
++        case .loaded(let payload) where payload.items.isEmpty:
++            EmptyStateView(
++                icon: "newspaper",
++                title: "No news available",
++                message: "Check back after the next radar update.",
++                retry: { Task { await load(force: true) } }
++            )
+         case .loaded(let payload):
+             List {
+                 if let failed = payload.failedLabs, !failed.isEmpty {
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 7202786..ee8c232 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -53,24 +53,38 @@ ReleaseModelRadar/
+ ```
+ 
+ State pattern: each screen owns `@State var state: Loadable<Payload>` and a
+-`load(force:)` — no view-model layer yet; introduce one when Phase 2 adds
++`load(force:)` — no view-model layer yet; introduce one when Phase 4 adds
+ persistence and favourites.
+ 
+-## Phase 2
++## Phase 4 (next)
+ 
+ - Persistent offline cache (store last good JSON per endpoint on disk)
+ - Saved/favourite models (local only)
+ - Better iPad layout (NavigationSplitView)
+ - Background refresh (BGAppRefreshTask) if appropriate
+ 
+-## Phase 3
++## Phase 5
+ 
+ - Widgets (latest release, last-checked)
+ - Local notifications for "daily check completed" via `/api/update-status`
+ - Optional push notifications later (needs server work — out of scope)
+ 
++## Appearance note
++
++The app intentionally sets `.preferredColorScheme(.dark)`: every design
++token mirrors the web app's dark navy palette, and system-light chrome over
++those hardcoded surfaces would render broken (dark text on dark panels).
++Honouring the system appearance properly means a semantic/light token set —
++a deliberate Phase 4+ task, not a quick toggle.
++
++## Release status
++
++App Store signing/distribution is **not** set up yet. The MVP baseline can
++still be locked after review — signing is a release task, not an MVP task.
++
+ ## Security / privacy
+ 
+ - The API domain in the binary is fine — it is public.
+-- Never reference Leonard/server internals in code, strings, or docs here.
++- Never reference private server internals (host names, paths, cron lines,
++  process names, or server-only runtime files) in code, strings, or docs here.
+ - No secrets exist in this app; keep it that way.
+-- 
+2.43.0
+
