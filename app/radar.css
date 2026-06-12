@@ -323,12 +323,7 @@
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
 .mr-newsarrow{flex:0 0 auto;align-self:center;color:var(--dim);font-size:18px;padding:0 14px;}
 
-/* ── Last-checked badge (header right) ───────────────────────────────────── */
+/* ── Last-checked badge (header right, runtime-fetched) ──────────────────── */
 .mr-checkbadge{cursor:help;white-space:nowrap;}
 .mr-checkbadge.warn{color:var(--warn);}
-.mr-checkfull{display:inline;}
-.mr-checkshort{display:none;}
-@media(max-width:620px){
-  .mr-checkfull{display:none;}
-  .mr-checkshort{display:inline;}
-}
+.mr-checkbadge.loading{color:var(--faint, var(--dim));opacity:.55;}
