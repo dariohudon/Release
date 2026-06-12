@@ -1,0 +1,758 @@
+From 5f988bd8debcfecd7b2e44dff88ced3aa2afa17b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 07:08:13 +0000
+Subject: [PATCH] Add Phase 6B cache, favourites, and accessibility hardening
+
+---
+ README.md                                     |   9 +-
+ ReleaseModelRadar.xcodeproj/project.pbxproj   | 120 ++++++++++++++++
+ ReleaseModelRadar/API/APIClient.swift         |  16 ++-
+ .../API/LocalAPIResponseCache.swift           |  13 +-
+ .../Components/StatusBadge.swift              |   9 +-
+ .../Features/Labs/LabFavoritesStore.swift     |  15 ++
+ .../Features/Labs/LabsView.swift              |   5 +-
+ .../APIClientCachePolicyTests.swift           | 136 ++++++++++++++++++
+ .../LabFavoritesStoreTests.swift              | 104 ++++++++++++++
+ .../LocalAPIResponseCacheTests.swift          |  47 ++++++
+ docs/ios-mvp-plan.md                          |  20 ++-
+ 11 files changed, 474 insertions(+), 20 deletions(-)
+ create mode 100644 ReleaseModelRadarTests/APIClientCachePolicyTests.swift
+ create mode 100644 ReleaseModelRadarTests/LabFavoritesStoreTests.swift
+ create mode 100644 ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
+
+diff --git a/README.md b/README.md
+index 475e9fb..8b3fc66 100644
+--- a/README.md
++++ b/README.md
+@@ -60,11 +60,12 @@ being shown (even when the cached list is empty).
+ - Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
+ - Phase 5 — Personalized recommendation layer (`phase-5-personalized-recommendation-lock`)
+ 
++- Phase 6 — Offline cache + lab favourites (`phase-6-offline-cache-lab-favourites-lock`)
++
+ **In review**
+ 
+-- Phase 6 — Persistent offline cache + lab favourites with in-app
+-  new-info indicators — implemented on `ios-offline-cache-lab-favourites`;
+-  code review passed, awaiting final manual QA before merge/lock.
++- Phase 6B — Cache/favourites/accessibility hardening + unit-test target —
++  implemented on `ios-cache-favourites-hardening`, awaiting review.
+ 
+ **Future**
+ 
+@@ -79,6 +80,8 @@ being shown (even when the cached list is empty).
+ - Open `ReleaseModelRadar.xcodeproj`, pick an iPhone simulator, ⌘R.
+   Simulators need no signing; a device needs your team under
+   Signing & Capabilities.
++- Run the unit tests with ⌘U (`ReleaseModelRadarTests` — cache policy,
++  disk persistence, favourites and indicator behaviour).
+ - **No server setup required** — the app talks to the public web/API
+   project, which is developed and deployed separately.
+ - Do not add secrets or API keys to this app; nothing it does needs them.
+diff --git a/ReleaseModelRadar.xcodeproj/project.pbxproj b/ReleaseModelRadar.xcodeproj/project.pbxproj
+index 7000c4d..eb03720 100644
+--- a/ReleaseModelRadar.xcodeproj/project.pbxproj
++++ b/ReleaseModelRadar.xcodeproj/project.pbxproj
+@@ -8,14 +8,30 @@
+ 
+ /* Begin PBXFileReference section */
+ 		A10000000000000000000004 /* ReleaseModelRadar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReleaseModelRadar.app; sourceTree = BUILT_PRODUCTS_DIR; };
++		B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReleaseModelRadarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+ /* End PBXFileReference section */
+ 
++/* Begin PBXContainerItemProxy section */
++		B2000000000000000000000008 /* PBXContainerItemProxy */ = {
++			isa = PBXContainerItemProxy;
++			containerPortal = A10000000000000000000006 /* Project object */;
++			proxyType = 1;
++			remoteGlobalIDString = A10000000000000000000005;
++			remoteInfo = ReleaseModelRadar;
++		};
++/* End PBXContainerItemProxy section */
++
+ /* Begin PBXFileSystemSynchronizedRootGroup section */
+ 		A10000000000000000000002 /* ReleaseModelRadar */ = {
+ 			isa = PBXFileSystemSynchronizedRootGroup;
+ 			path = ReleaseModelRadar;
+ 			sourceTree = "<group>";
+ 		};
++		B2000000000000000000000001 /* ReleaseModelRadarTests */ = {
++			isa = PBXFileSystemSynchronizedRootGroup;
++			path = ReleaseModelRadarTests;
++			sourceTree = "<group>";
++		};
+ /* End PBXFileSystemSynchronizedRootGroup section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -26,6 +42,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000005 /* Frameworks */ = {
++			isa = PBXFrameworksBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXFrameworksBuildPhase section */
+ 
+ /* Begin PBXGroup section */
+@@ -33,6 +56,7 @@
+ 			isa = PBXGroup;
+ 			children = (
+ 				A10000000000000000000002 /* ReleaseModelRadar */,
++				B2000000000000000000000001 /* ReleaseModelRadarTests */,
+ 				A10000000000000000000003 /* Products */,
+ 			);
+ 			sourceTree = "<group>";
+@@ -41,6 +65,7 @@
+ 			isa = PBXGroup;
+ 			children = (
+ 				A10000000000000000000004 /* ReleaseModelRadar.app */,
++				B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */,
+ 			);
+ 			name = Products;
+ 			sourceTree = "<group>";
+@@ -70,8 +95,39 @@
+ 			productReference = A10000000000000000000004 /* ReleaseModelRadar.app */;
+ 			productType = "com.apple.product-type.application";
+ 		};
++		B2000000000000000000000003 /* ReleaseModelRadarTests */ = {
++			isa = PBXNativeTarget;
++			buildConfigurationList = B2000000000000000000000009 /* Build configuration list for PBXNativeTarget "ReleaseModelRadarTests" */;
++			buildPhases = (
++				B2000000000000000000000004 /* Sources */,
++				B2000000000000000000000005 /* Frameworks */,
++				B2000000000000000000000006 /* Resources */,
++			);
++			buildRules = (
++			);
++			dependencies = (
++				B2000000000000000000000007 /* PBXTargetDependency */,
++			);
++			fileSystemSynchronizedGroups = (
++				B2000000000000000000000001 /* ReleaseModelRadarTests */,
++			);
++			name = ReleaseModelRadarTests;
++			packageProductDependencies = (
++			);
++			productName = ReleaseModelRadarTests;
++			productReference = B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */;
++			productType = "com.apple.product-type.bundle.unit-test";
++		};
+ /* End PBXNativeTarget section */
+ 
++/* Begin PBXTargetDependency section */
++		B2000000000000000000000007 /* PBXTargetDependency */ = {
++			isa = PBXTargetDependency;
++			target = A10000000000000000000005 /* ReleaseModelRadar */;
++			targetProxy = B2000000000000000000000008 /* PBXContainerItemProxy */;
++		};
++/* End PBXTargetDependency section */
++
+ /* Begin PBXProject section */
+ 		A10000000000000000000006 /* Project object */ = {
+ 			isa = PBXProject;
+@@ -83,6 +139,10 @@
+ 					A10000000000000000000005 = {
+ 						CreatedOnToolsVersion = 16.0;
+ 					};
++					B2000000000000000000000003 = {
++						CreatedOnToolsVersion = 16.0;
++						TestTargetID = A10000000000000000000005;
++					};
+ 				};
+ 			};
+ 			buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXProject "ReleaseModelRadar" */;
+@@ -101,6 +161,7 @@
+ 			projectRoot = "";
+ 			targets = (
+ 				A10000000000000000000005 /* ReleaseModelRadar */,
++				B2000000000000000000000003 /* ReleaseModelRadarTests */,
+ 			);
+ 		};
+ /* End PBXProject section */
+@@ -113,6 +174,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000006 /* Resources */ = {
++			isa = PBXResourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXResourcesBuildPhase section */
+ 
+ /* Begin PBXSourcesBuildPhase section */
+@@ -123,6 +191,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		B2000000000000000000000004 /* Sources */ = {
++			isa = PBXSourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXSourcesBuildPhase section */
+ 
+ /* Begin XCBuildConfiguration section */
+@@ -299,6 +374,42 @@
+ 			};
+ 			name = Release;
+ 		};
++		B200000000000000000000000A /* Debug */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				BUNDLE_LOADER = "$(TEST_HOST)";
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadarTests;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SWIFT_EMIT_LOC_STRINGS = NO;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReleaseModelRadar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ReleaseModelRadar";
++			};
++			name = Debug;
++		};
++		B200000000000000000000000B /* Release */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				BUNDLE_LOADER = "$(TEST_HOST)";
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadarTests;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SWIFT_EMIT_LOC_STRINGS = NO;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ReleaseModelRadar.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ReleaseModelRadar";
++			};
++			name = Release;
++		};
+ /* End XCBuildConfiguration section */
+ 
+ /* Begin XCConfigurationList section */
+@@ -320,6 +431,15 @@
+ 			defaultConfigurationIsVisible = 0;
+ 			defaultConfigurationName = Release;
+ 		};
++		B2000000000000000000000009 /* Build configuration list for PBXNativeTarget "ReleaseModelRadarTests" */ = {
++			isa = XCConfigurationList;
++			buildConfigurations = (
++				B200000000000000000000000A /* Debug */,
++				B200000000000000000000000B /* Release */,
++			);
++			defaultConfigurationIsVisible = 0;
++			defaultConfigurationName = Release;
++		};
+ /* End XCConfigurationList section */
+ 	};
+ 	rootObject = A10000000000000000000006 /* Project object */;
+diff --git a/ReleaseModelRadar/API/APIClient.swift b/ReleaseModelRadar/API/APIClient.swift
+index fe4adb4..067d9b4 100644
+--- a/ReleaseModelRadar/API/APIClient.swift
++++ b/ReleaseModelRadar/API/APIClient.swift
+@@ -48,12 +48,16 @@ actor APIClient {
+     static let baseURL = URL(string: "https://release.brightening.ca")!
+ 
+     private let session: URLSession
++    private let diskCache: LocalAPIResponseCache
+     private var memoryCache: [String: (data: Data, savedAt: Date)] = [:]
+ 
+-    init() {
+-        let config = URLSessionConfiguration.default
+-        config.timeoutIntervalForRequest = 15
+-        session = URLSession(configuration: config)
++    /// Configuration and disk cache are injectable for tests; production
++    /// callers use the defaults.
++    init(configuration: URLSessionConfiguration = .default,
++         diskCache: LocalAPIResponseCache = .shared) {
++        configuration.timeoutIntervalForRequest = 15
++        session = URLSession(configuration: configuration)
++        self.diskCache = diskCache
+     }
+ 
+     /// Convenience for callers that don't care about the source.
+@@ -80,7 +84,7 @@ actor APIClient {
+             // Decode FIRST — only a fully decoded response earns the cache.
+             let value: T = try decodeEnvelope(data)
+             memoryCache[path] = (data, Date())
+-            await LocalAPIResponseCache.shared.save(data, for: path)
++            await diskCache.save(data, for: path)
+             return FetchOutcome(value: value, source: .fresh)
+         } catch let error as APIError {
+             if case .api = error { throw error } // authoritative server answer
+@@ -96,7 +100,7 @@ actor APIClient {
+         if let entry = memoryCache[path], let value: T = try? decodeEnvelope(entry.data) {
+             return FetchOutcome(value: value, source: .cached(savedAt: entry.savedAt))
+         }
+-        if let disk = await LocalAPIResponseCache.shared.load(for: path),
++        if let disk = await diskCache.load(for: path),
+            let value: T = try? decodeEnvelope(disk.data) {
+             memoryCache[path] = (disk.data, disk.savedAt) // hydrate for this session
+             return FetchOutcome(value: value, source: .cached(savedAt: disk.savedAt))
+diff --git a/ReleaseModelRadar/API/LocalAPIResponseCache.swift b/ReleaseModelRadar/API/LocalAPIResponseCache.swift
+index b066190..c2fb3fa 100644
+--- a/ReleaseModelRadar/API/LocalAPIResponseCache.swift
++++ b/ReleaseModelRadar/API/LocalAPIResponseCache.swift
+@@ -1,3 +1,4 @@
++import CryptoKit
+ import Foundation
+ 
+ /* Persistent last-good response cache (Phase 6).
+@@ -39,8 +40,16 @@ actor LocalAPIResponseCache {
+         return (entry.data, entry.savedAt)
+     }
+ 
++    /// Collision-resistant filename: a short human-readable prefix plus the
++    /// SHA-256 of the exact path. The old letters/numbers-only sanitization
++    /// could collide ("/api/a-b" vs "/api/a/b" → "api-a-b"); the hash makes
++    /// every distinct path map to a distinct file. (Old-scheme files are
++    /// simply orphaned in Caches and reclaimed by the system.)
+     private func fileURL(for path: String) -> URL {
+-        let safeName = String(path.map { $0.isLetter || $0.isNumber ? $0 : "-" })
+-        return directory.appendingPathComponent(safeName + ".json")
++        let digest = SHA256.hash(data: Data(path.utf8))
++        let hex = digest.map { String(format: "%02x", $0) }.joined().prefix(16)
++        let lastComponent = path.split(separator: "/").last.map(String.init) ?? "cache"
++        let prefix = String(lastComponent.map { $0.isLetter || $0.isNumber ? $0 : "-" })
++        return directory.appendingPathComponent("\(prefix)-\(hex).json")
+     }
+ }
+diff --git a/ReleaseModelRadar/Components/StatusBadge.swift b/ReleaseModelRadar/Components/StatusBadge.swift
+index 00a854c..b7e265e 100644
+--- a/ReleaseModelRadar/Components/StatusBadge.swift
++++ b/ReleaseModelRadar/Components/StatusBadge.swift
+@@ -11,6 +11,7 @@ import SwiftUI
+ struct StatusBadgeView: View {
+     @State private var state: Loadable<UpdateStatus> = .loading
+     @State private var showDetail = false
++    @State private var servedFromCacheAt: Date?
+ 
+     private static let staleInterval: TimeInterval = 36 * 60 * 60
+ 
+@@ -35,10 +36,13 @@ struct StatusBadgeView: View {
+     private func load() async {
+         do {
+             // Cached fallback is fine here: the badge's own staleness logic
+-            // (>36h → "Stale") already communicates an old value honestly.
++            // (>36h → "Stale") covers old values, and the detail alert says
++            // explicitly when the data came from the on-device cache.
+             let outcome = try await APIClient.shared.fetchWithCache("/api/update-status", as: UpdateStatus.self)
++            servedFromCacheAt = outcome.cachedAt
+             state = .loaded(outcome.value)
+         } catch {
++            servedFromCacheAt = nil
+             state = .failed(error.localizedDescription)
+         }
+     }
+@@ -85,6 +89,9 @@ struct StatusBadgeView: View {
+             text += "\(status.sourcesChecked) sources · \(status.candidatesFound) candidates · "
+             text += "\(status.newCandidates) new · \(status.failedSources) failed"
+             if isStale { text += "\nOlder than 36 hours" }
++            if let servedFromCacheAt {
++                text += "\nShowing saved data (fetched \(Fmt.shortDate(servedFromCacheAt)), \(Fmt.time(servedFromCacheAt))) — couldn't reach the radar just now."
++            }
+             return text
+         }
+     }
+diff --git a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+index 3c520ec..51e4f03 100644
+--- a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
++++ b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+@@ -52,6 +52,10 @@ final class LabFavoritesStore: ObservableObject {
+     /// Compare freshly loaded labs against the previous snapshot and flag
+     /// favourited labs whose public model count changed. Call only after a
+     /// fresh fetch — never for cached data.
++    ///
++    /// Also prunes favourites whose lab id no longer exists upstream, so a
++    /// renamed/removed lab can never wedge the favourites list or leave a
++    /// permanent ghost indicator.
+     func recordLabsSnapshot(_ labs: [Lab]) {
+         var snapshot = stringDictionary(Key.modelCounts)
+         var flagged = newInfoLabIDs
+@@ -64,6 +68,17 @@ final class LabFavoritesStore: ObservableObject {
+             }
+             snapshot[lab.id] = fingerprint
+         }
++
++        // Cleanup: drop anything referencing labs absent from this fresh list.
++        let liveIDs = Set(labs.map(\.id))
++        let vanished = favoriteIDs.subtracting(liveIDs)
++        if !vanished.isEmpty {
++            favoriteIDs.subtract(vanished)
++            defaults.set(Array(favoriteIDs).sorted(), forKey: Key.favorites)
++        }
++        flagged.formIntersection(liveIDs)
++        snapshot = snapshot.filter { liveIDs.contains($0.key) }
++
+         defaults.set(snapshot, forKey: Key.modelCounts)
+         updateNewInfo(flagged)
+     }
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 56269d8..b34df24 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -155,7 +155,10 @@ struct LabRow: View {
+             // the hit area is unaffected.
+             .padding(.vertical, -8)
+             .padding(.trailing, -5)
+-            .accessibilityLabel(isFavorite ? "Unfavourite \(lab.name)" : "Favourite \(lab.name)")
++            .accessibilityLabel("Favourite \(lab.name)")
++            .accessibilityValue(isFavorite ? "favourited" : "not favourited")
++            .accessibilityHint(isFavorite ? "Double tap to remove from favourites." : "Double tap to add to favourites.")
++            .accessibilityAddTraits(isFavorite ? [.isSelected] : [])
+         }
+         .padding(.vertical, 4)
+     }
+diff --git a/ReleaseModelRadarTests/APIClientCachePolicyTests.swift b/ReleaseModelRadarTests/APIClientCachePolicyTests.swift
+new file mode 100644
+index 0000000..98112aa
+--- /dev/null
++++ b/ReleaseModelRadarTests/APIClientCachePolicyTests.swift
+@@ -0,0 +1,136 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++/// Intercepts the APIClient's URLSession so cache policy can be tested
++/// without any network. Each test sets `handler` before fetching.
++final class MockURLProtocol: URLProtocol {
++    static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
++
++    override class func canInit(with request: URLRequest) -> Bool { true }
++    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
++
++    override func startLoading() {
++        guard let handler = MockURLProtocol.handler else {
++            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
++            return
++        }
++        do {
++            let (response, data) = try handler(request)
++            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
++            client?.urlProtocol(self, didLoad: data)
++            client?.urlProtocolDidFinishLoading(self)
++        } catch {
++            client?.urlProtocol(self, didFailWithError: error)
++        }
++    }
++
++    override func stopLoading() {}
++}
++
++final class APIClientCachePolicyTests: XCTestCase {
++
++    struct Payload: Codable, Equatable {
++        let value: String
++    }
++
++    private var cacheDirectory = ""
++
++    override func setUp() {
++        super.setUp()
++        cacheDirectory = "Test-\(UUID().uuidString)"
++        MockURLProtocol.handler = nil
++    }
++
++    override func tearDown() {
++        MockURLProtocol.handler = nil
++        super.tearDown()
++    }
++
++    private func makeClient() -> APIClient {
++        let configuration = URLSessionConfiguration.ephemeral
++        configuration.protocolClasses = [MockURLProtocol.self]
++        return APIClient(
++            configuration: configuration,
++            diskCache: LocalAPIResponseCache(directoryName: cacheDirectory)
++        )
++    }
++
++    private func respond(status: Int, body: String) {
++        MockURLProtocol.handler = { request in
++            let response = HTTPURLResponse(
++                url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil
++            )!
++            return (response, Data(body.utf8))
++        }
++    }
++
++    private func failNetwork() {
++        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
++    }
++
++    private let goodA = #"{"ok":true,"generatedAt":"2026-06-12T00:00:00.000Z","count":1,"data":{"value":"A"}}"#
++
++    func test_freshFetchReturnsFreshAndWritesCache() async throws {
++        let client = makeClient()
++        respond(status: 200, body: goodA)
++
++        let outcome = try await client.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(outcome.value, Payload(value: "A"))
++        guard case .fresh = outcome.source else { return XCTFail("expected .fresh") }
++
++        // Network gone → the just-written cache must answer.
++        failNetwork()
++        let fallback = try await client.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(fallback.value, Payload(value: "A"))
++        guard case .cached = fallback.source else { return XCTFail("expected .cached") }
++    }
++
++    func test_decodeFailureDoesNotOverwriteGoodCache() async throws {
++        let client = makeClient()
++        respond(status: 200, body: goodA)
++        _ = try await client.fetchWithCache("/api/test", as: Payload.self)
++
++        // Server now returns garbage: the fetch must fall back to the good
++        // cached value, and the garbage must NOT replace it.
++        respond(status: 200, body: "not json at all")
++        let outcome = try await client.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(outcome.value, Payload(value: "A"))
++        guard case .cached = outcome.source else { return XCTFail("expected .cached") }
++
++        // Still good after another failure round (cache was not poisoned).
++        failNetwork()
++        let again = try await client.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(again.value, Payload(value: "A"))
++    }
++
++    func test_authoritativeOkFalseIsNotMaskedByCache() async throws {
++        let client = makeClient()
++        respond(status: 200, body: goodA)
++        _ = try await client.fetchWithCache("/api/test", as: Payload.self)
++
++        // ok:false is a real server answer — stale cache must not hide it.
++        respond(status: 404, body: #"{"ok":false,"generatedAt":"2026-06-12T00:00:00.000Z","error":"no update check recorded yet","data":null}"#)
++        do {
++            _ = try await client.fetchWithCache("/api/test", as: Payload.self)
++            XCTFail("expected APIError.api to be thrown")
++        } catch let error as APIError {
++            guard case .api(let message) = error else { return XCTFail("expected .api, got \(error)") }
++            XCTAssertEqual(message, "no update check recorded yet")
++        }
++    }
++
++    func test_diskCacheServesAfterClientRecreation() async throws {
++        let first = makeClient()
++        respond(status: 200, body: goodA)
++        _ = try await first.fetchWithCache("/api/test", as: Payload.self)
++
++        // New client, empty memory, same disk directory, no network:
++        // the disk cache must answer.
++        let second = makeClient()
++        failNetwork()
++        let outcome = try await second.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(outcome.value, Payload(value: "A"))
++        guard case .cached(let savedAt) = outcome.source else { return XCTFail("expected .cached") }
++        XCTAssertLessThanOrEqual(abs(savedAt.timeIntervalSinceNow), 60)
++    }
++}
+diff --git a/ReleaseModelRadarTests/LabFavoritesStoreTests.swift b/ReleaseModelRadarTests/LabFavoritesStoreTests.swift
+new file mode 100644
+index 0000000..f0684ad
+--- /dev/null
++++ b/ReleaseModelRadarTests/LabFavoritesStoreTests.swift
+@@ -0,0 +1,104 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++@MainActor
++final class LabFavoritesStoreTests: XCTestCase {
++
++    private var suiteName = ""
++    private var defaults: UserDefaults!
++
++    override func setUp() {
++        super.setUp()
++        suiteName = "test.favorites.\(UUID().uuidString)"
++        defaults = UserDefaults(suiteName: suiteName)
++    }
++
++    override func tearDown() {
++        defaults.removePersistentDomain(forName: suiteName)
++        super.tearDown()
++    }
++
++    private func lab(_ id: String, count: Int) -> Lab {
++        Lab(id: id, name: id.capitalized, color: "#5EEAD4", modelCount: count)
++    }
++
++    private func newsItem(lab: String, title: String) -> NewsItem {
++        NewsItem(
++            id: "\(lab)-0", lab: lab, labName: lab.capitalized, title: title,
++            url: "https://example.com", source: "Official", sourceType: "official",
++            publishedAt: nil, snippet: nil
++        )
++    }
++
++    func test_favouritesPersistAcrossStoreRecreation() {
++        let first = LabFavoritesStore(defaults: defaults)
++        first.toggle("anthropic")
++        XCTAssertTrue(first.isFavorite("anthropic"))
++
++        let second = LabFavoritesStore(defaults: defaults)
++        XCTAssertTrue(second.isFavorite("anthropic"))
++
++        second.toggle("anthropic")
++        let third = LabFavoritesStore(defaults: defaults)
++        XCTAssertFalse(third.isFavorite("anthropic"))
++    }
++
++    func test_snapshotsPersistAndFlagChangesForFavouritesOnly() {
++        let first = LabFavoritesStore(defaults: defaults)
++        first.toggle("anthropic")
++        first.recordLabsSnapshot([lab("anthropic", count: 5), lab("google", count: 4)])
++        XCTAssertTrue(first.newInfoLabIDs.isEmpty, "first snapshot must not flag")
++
++        // Recreate (≈ relaunch): the snapshot must have persisted, so a
++        // changed count flags the favourited lab — and only that one.
++        let second = LabFavoritesStore(defaults: defaults)
++        second.recordLabsSnapshot([lab("anthropic", count: 6), lab("google", count: 9)])
++        XCTAssertEqual(second.newInfoLabIDs, ["anthropic"])
++
++        // Indicator itself persists across recreation too.
++        let third = LabFavoritesStore(defaults: defaults)
++        XCTAssertEqual(third.newInfoLabIDs, ["anthropic"])
++        third.clearNewInfo(for: "anthropic")
++        XCTAssertTrue(third.newInfoLabIDs.isEmpty)
++    }
++
++    func test_newsSnapshotFlagsNewHeadlineForFavourites() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("openai")
++        store.recordNewsSnapshot([newsItem(lab: "openai", title: "first headline")])
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty, "first snapshot must not flag")
++
++        store.recordNewsSnapshot([newsItem(lab: "openai", title: "second headline")])
++        XCTAssertEqual(store.newInfoLabIDs, ["openai"])
++    }
++
++    func test_vanishedLabIsPrunedSafely() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("ghostlab")
++        store.recordLabsSnapshot([lab("ghostlab", count: 3), lab("anthropic", count: 5)])
++        store.recordLabsSnapshot([lab("ghostlab", count: 4), lab("anthropic", count: 5)])
++        XCTAssertEqual(store.newInfoLabIDs, ["ghostlab"])
++
++        // Lab disappears upstream: favourite, indicator, and snapshot entry
++        // must all be cleaned up without crashing.
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        XCTAssertFalse(store.isFavorite("ghostlab"))
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty)
++
++        // And the cleanup persisted.
++        let reloaded = LabFavoritesStore(defaults: defaults)
++        XCTAssertFalse(reloaded.isFavorite("ghostlab"))
++        XCTAssertTrue(reloaded.newInfoLabIDs.isEmpty)
++    }
++
++    func test_unfavouritingClearsItsIndicator() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("meta")
++        store.recordLabsSnapshot([lab("meta", count: 2)])
++        store.recordLabsSnapshot([lab("meta", count: 3)])
++        XCTAssertEqual(store.newInfoLabIDs, ["meta"])
++
++        store.toggle("meta")
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty)
++    }
++}
+diff --git a/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift b/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
+new file mode 100644
+index 0000000..3ca807a
+--- /dev/null
++++ b/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
+@@ -0,0 +1,47 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++final class LocalAPIResponseCacheTests: XCTestCase {
++
++    private func makeCache() -> LocalAPIResponseCache {
++        LocalAPIResponseCache(directoryName: "Test-\(UUID().uuidString)")
++    }
++
++    func test_saveAndLoadRoundtrip() async {
++        let cache = makeCache()
++        let payload = Data("hello".utf8)
++        await cache.save(payload, for: "/api/models")
++        let loaded = await cache.load(for: "/api/models")
++        XCTAssertEqual(loaded?.data, payload)
++        XCTAssertNotNil(loaded?.savedAt)
++    }
++
++    func test_missingEntryReturnsNil() async {
++        let cache = makeCache()
++        let loaded = await cache.load(for: "/api/never-written")
++        XCTAssertNil(loaded)
++    }
++
++    /// The old sanitization collapsed "/api/a-b" and "/api/a/b" to the same
++    /// filename; the hashed scheme must keep them distinct.
++    func test_similarPathsDoNotCollide() async {
++        let cache = makeCache()
++        await cache.save(Data("dash".utf8), for: "/api/a-b")
++        await cache.save(Data("slash".utf8), for: "/api/a/b")
++        let dash = await cache.load(for: "/api/a-b")
++        let slash = await cache.load(for: "/api/a/b")
++        XCTAssertEqual(dash.map { String(decoding: $0.data, as: UTF8.self) }, "dash")
++        XCTAssertEqual(slash.map { String(decoding: $0.data, as: UTF8.self) }, "slash")
++    }
++
++    /// Disk entries must survive recreating the cache (≈ app relaunch).
++    func test_persistsAcrossInstances() async {
++        let directory = "Test-\(UUID().uuidString)"
++        let first = LocalAPIResponseCache(directoryName: directory)
++        await first.save(Data("persisted".utf8), for: "/api/labs")
++
++        let second = LocalAPIResponseCache(directoryName: directory)
++        let loaded = await second.load(for: "/api/labs")
++        XCTAssertEqual(loaded.map { String(decoding: $0.data, as: UTF8.self) }, "persisted")
++    }
++}
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 7521120..cc2e289 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -64,13 +64,19 @@ later phase genuinely needs it.
+   skippable, editable/resettable
+ - Phase 5 — ✅ locked: personalized "Why it matters to you" layer
+   (`phase-5-personalized-recommendation-lock`)
+-- Phase 6 — implemented, code review passed, awaiting final manual QA +
+-  lock: persistent offline cache (last-good responses on disk via
+-  `LocalAPIResponseCache`, written only after successful decode, gentle
+-  "Offline — last updated …" notices even for empty cached payloads) +
+-  lab favourites with in-app new-info indicators (`LabFavoritesStore`,
+-  UserDefaults-only, no system notifications, no permission prompts,
+-  no backend sync)
++- Phase 6 — ✅ locked: persistent offline cache (last-good responses on
++  disk via `LocalAPIResponseCache`, written only after successful decode,
++  gentle "Offline — last updated …" notices even for empty cached
++  payloads) + lab favourites with in-app new-info indicators
++  (`LabFavoritesStore`, UserDefaults-only, no system notifications, no
++  permission prompts, no backend sync)
++  (`phase-6-offline-cache-lab-favourites-lock`)
++- Phase 6B — in review: hardening — `ReleaseModelRadarTests` unit-test
++  target (cache policy, disk persistence, favourites/indicator behaviour),
++  SHA-256 collision-resistant cache filenames, automatic cleanup of
++  favourites whose lab id disappears upstream, cached-data note in the
++  update-status detail alert, and VoiceOver value/hint/selected traits on
++  the favourite star
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+-- 
+2.43.0
+
