@@ -1,0 +1,417 @@
+From d3bdb64cfe4f891e8b96a3dbc84e2beddce3fffe Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 15:54:49 +0000
+Subject: [PATCH] Add opt-in daily check reminder via local notifications
+
+---
+ .../Features/Settings/SettingsView.swift      |  55 +++++-
+ .../Notifications/DailyReminderStore.swift    | 161 ++++++++++++++++++
+ .../DailyReminderStoreTests.swift             | 143 ++++++++++++++++
+ 3 files changed, 356 insertions(+), 3 deletions(-)
+ create mode 100644 ReleaseModelRadar/Notifications/DailyReminderStore.swift
+ create mode 100644 ReleaseModelRadarTests/DailyReminderStoreTests.swift
+
+diff --git a/ReleaseModelRadar/Features/Settings/SettingsView.swift b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+index f71e861..42757d5 100644
+--- a/ReleaseModelRadar/Features/Settings/SettingsView.swift
++++ b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+@@ -1,11 +1,14 @@
+ import SwiftUI
++import UIKit
+ 
+-/* Settings tab: view/edit/reset the local Tune Radar preferences, plus a
+-   small read-only About section. No accounts, no sync — everything here is
+-   on-device UserDefaults. */
++/* Settings tab: view/edit/reset the local Tune Radar preferences, the
++   opt-in daily check reminder (local notification only), plus a small
++   read-only About section. No accounts, no sync — everything here is
++   on-device. */
+ 
+ struct SettingsView: View {
+     @EnvironmentObject private var store: TuneRadarPreferencesStore
++    @StateObject private var reminder = DailyReminderStore()
+     @State private var showResetConfirm = false
+ 
+     var body: some View {
+@@ -39,6 +42,36 @@ struct SettingsView: View {
+                 }
+                 .listRowBackground(Theme.panel)
+ 
++                Section {
++                    Toggle("Daily reminder", isOn: reminderEnabledBinding)
++                        .tint(Theme.good)
++                    if reminder.isEnabled {
++                        DatePicker(
++                            "Time",
++                            selection: reminderTimeBinding,
++                            displayedComponents: .hourAndMinute
++                        )
++                    }
++                    if reminder.permissionDenied {
++                        VStack(alignment: .leading, spacing: 6) {
++                            Text("Notifications are turned off for this app in iOS Settings.")
++                                .font(.system(size: 12))
++                                .foregroundStyle(Theme.warn)
++                            if let url = URL(string: UIApplication.openSettingsURLString) {
++                                Link("Open iOS Settings", destination: url)
++                                    .font(.system(size: 12, weight: .semibold))
++                                    .foregroundStyle(Theme.good)
++                            }
++                        }
++                    }
++                } header: {
++                    Text("Daily Check Notifications")
++                } footer: {
++                    Text("Get a daily reminder to check what changed in the radar. This is a local reminder scheduled on this device — not a push alert from a server. Nothing is sent anywhere, and permission is only requested when you turn it on.")
++                        .foregroundStyle(Theme.dim)
++                }
++                .listRowBackground(Theme.panel)
++
+                 Section("About") {
+                     LabeledContent("Data source", value: "release.brightening.ca")
+                     LabeledContent("Version", value: appVersion)
+@@ -62,9 +95,25 @@ struct SettingsView: View {
+             } message: {
+                 Text("Both answers are cleared and the two quick questions will show again.")
+             }
++            // Surface "revoked in iOS Settings" without ever prompting.
++            .task { await reminder.refreshPermissionStatus() }
+         }
+     }
+ 
++    private var reminderEnabledBinding: Binding<Bool> {
++        Binding(
++            get: { reminder.isEnabled },
++            set: { enabled in Task { await reminder.setEnabled(enabled) } }
++        )
++    }
++
++    private var reminderTimeBinding: Binding<Date> {
++        Binding(
++            get: { reminder.reminderTime },
++            set: { date in Task { await reminder.setTime(from: date) } }
++        )
++    }
++
+     private var usageBinding: Binding<UsageFocus?> {
+         Binding(get: { store.preferences.usage }, set: { store.setUsage($0) })
+     }
+diff --git a/ReleaseModelRadar/Notifications/DailyReminderStore.swift b/ReleaseModelRadar/Notifications/DailyReminderStore.swift
+new file mode 100644
+index 0000000..9939190
+--- /dev/null
++++ b/ReleaseModelRadar/Notifications/DailyReminderStore.swift
+@@ -0,0 +1,161 @@
++import Foundation
++import SwiftUI
++import UserNotifications
++
++/* Phase 8A — opt-in daily check reminder.
++
++   A LOCAL repeating notification only: "go look at the radar". It is
++   scheduled on this device with UserNotifications, never from a server —
++   there is no push, no backend, no background refresh, and no sync. The
++   notification text is a plain reminder; it never claims a model shipped
++   or a check completed, because the app hasn't fetched anything when it
++   fires.
++
++   Permission is requested ONLY when the user turns the reminder on in
++   Settings — never at launch. */
++
++/// Seam over UNUserNotificationCenter so reminder logic is unit-testable.
++protocol NotificationScheduling {
++    func authorizationStatus() async -> UNAuthorizationStatus
++    /// Asks the system for permission (alert + sound). Returns whether granted.
++    func requestAuthorization() async throws -> Bool
++    /// (Re)schedules the repeating daily reminder, replacing any previous one.
++    func scheduleDailyReminder(id: String, title: String, body: String, hour: Int, minute: Int) async throws
++    func cancelReminder(id: String)
++}
++
++/// Real scheduler backed by the system notification center.
++final class UserNotificationScheduler: NotificationScheduling {
++    func authorizationStatus() async -> UNAuthorizationStatus {
++        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
++    }
++
++    func requestAuthorization() async throws -> Bool {
++        try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
++    }
++
++    func scheduleDailyReminder(id: String, title: String, body: String, hour: Int, minute: Int) async throws {
++        let content = UNMutableNotificationContent()
++        content.title = title
++        content.body = body
++        content.sound = .default
++
++        var components = DateComponents()
++        components.hour = hour
++        components.minute = minute
++        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
++
++        let center = UNUserNotificationCenter.current()
++        center.removePendingNotificationRequests(withIdentifiers: [id])
++        try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
++    }
++
++    func cancelReminder(id: String) {
++        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
++    }
++}
++
++@MainActor
++final class DailyReminderStore: ObservableObject {
++
++    enum Constants {
++        static let requestID = "daily-check-reminder"
++        static let title = "Release Model Radar"
++        static let body = "Check today’s model updates."
++        static let defaultHour = 9
++        static let defaultMinute = 0
++    }
++
++    private enum Key {
++        static let enabled = "notifications.dailyReminder.enabled"
++        static let hour = "notifications.dailyReminder.hour"
++        static let minute = "notifications.dailyReminder.minute"
++    }
++
++    @Published private(set) var isEnabled: Bool
++    @Published private(set) var hour: Int
++    @Published private(set) var minute: Int
++    /// True when the user tried to enable but the system permission is
++    /// denied — Settings shows a pointer to iOS Settings.
++    @Published private(set) var permissionDenied = false
++
++    private let defaults: UserDefaults
++    private let scheduler: NotificationScheduling
++
++    init(defaults: UserDefaults = .standard, scheduler: NotificationScheduling = UserNotificationScheduler()) {
++        self.defaults = defaults
++        self.scheduler = scheduler
++        isEnabled = defaults.bool(forKey: Key.enabled)
++        hour = defaults.object(forKey: Key.hour) as? Int ?? Constants.defaultHour
++        minute = defaults.object(forKey: Key.minute) as? Int ?? Constants.defaultMinute
++    }
++
++    /// Reminder time as a Date for SwiftUI's hour-and-minute picker.
++    var reminderTime: Date {
++        Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) ?? .now
++    }
++
++    /// Turn the reminder on or off. Enabling asks for permission first
++    /// (this is the ONLY place the app ever requests it); nothing is
++    /// persisted as enabled unless permission was granted and the
++    /// notification was actually scheduled.
++    func setEnabled(_ enabled: Bool) async {
++        if enabled {
++            let granted = (try? await scheduler.requestAuthorization()) ?? false
++            guard granted else {
++                permissionDenied = true
++                persistEnabled(false)
++                return
++            }
++            permissionDenied = false
++            do {
++                try await schedule()
++                persistEnabled(true)
++            } catch {
++                persistEnabled(false)
++            }
++        } else {
++            scheduler.cancelReminder(id: Constants.requestID)
++            persistEnabled(false)
++        }
++    }
++
++    /// Update the reminder time; reschedules if currently enabled.
++    func setTime(hour newHour: Int, minute newMinute: Int) async {
++        hour = newHour
++        minute = newMinute
++        defaults.set(newHour, forKey: Key.hour)
++        defaults.set(newMinute, forKey: Key.minute)
++        if isEnabled {
++            try? await schedule()
++        }
++    }
++
++    func setTime(from date: Date) async {
++        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
++        await setTime(hour: components.hour ?? Constants.defaultHour,
++                      minute: components.minute ?? Constants.defaultMinute)
++    }
++
++    /// Re-check the system permission (e.g. when Settings appears) so the
++    /// UI can say if notifications were revoked in iOS Settings.
++    func refreshPermissionStatus() async {
++        let status = await scheduler.authorizationStatus()
++        permissionDenied = isEnabled && status == .denied
++    }
++
++    private func schedule() async throws {
++        try await scheduler.scheduleDailyReminder(
++            id: Constants.requestID,
++            title: Constants.title,
++            body: Constants.body,
++            hour: hour,
++            minute: minute
++        )
++    }
++
++    private func persistEnabled(_ value: Bool) {
++        isEnabled = value
++        defaults.set(value, forKey: Key.enabled)
++    }
++}
+diff --git a/ReleaseModelRadarTests/DailyReminderStoreTests.swift b/ReleaseModelRadarTests/DailyReminderStoreTests.swift
+new file mode 100644
+index 0000000..5e62b9c
+--- /dev/null
++++ b/ReleaseModelRadarTests/DailyReminderStoreTests.swift
+@@ -0,0 +1,143 @@
++import XCTest
++import UserNotifications
++@testable import ReleaseModelRadar
++
++/// Records scheduler calls instead of touching the real notification center.
++private final class MockScheduler: NotificationScheduling {
++    var grantsAuthorization = true
++    var status: UNAuthorizationStatus = .notDetermined
++
++    private(set) var authorizationRequests = 0
++    private(set) var scheduled: [(id: String, title: String, body: String, hour: Int, minute: Int)] = []
++    private(set) var cancelled: [String] = []
++
++    func authorizationStatus() async -> UNAuthorizationStatus { status }
++
++    func requestAuthorization() async throws -> Bool {
++        authorizationRequests += 1
++        status = grantsAuthorization ? .authorized : .denied
++        return grantsAuthorization
++    }
++
++    func scheduleDailyReminder(id: String, title: String, body: String, hour: Int, minute: Int) async throws {
++        scheduled.append((id, title, body, hour, minute))
++    }
++
++    func cancelReminder(id: String) {
++        cancelled.append(id)
++    }
++}
++
++@MainActor
++final class DailyReminderStoreTests: XCTestCase {
++
++    private var suiteName = ""
++    private var defaults: UserDefaults!
++    private var scheduler: MockScheduler!
++
++    override func setUp() {
++        super.setUp()
++        suiteName = "test.reminder.\(UUID().uuidString)"
++        defaults = UserDefaults(suiteName: suiteName)
++        scheduler = MockScheduler()
++    }
++
++    override func tearDown() {
++        defaults.removePersistentDomain(forName: suiteName)
++        super.tearDown()
++    }
++
++    private func makeStore() -> DailyReminderStore {
++        DailyReminderStore(defaults: defaults, scheduler: scheduler)
++    }
++
++    func test_defaultsAreDisabledAtNineAM() {
++        let store = makeStore()
++        XCTAssertFalse(store.isEnabled)
++        XCTAssertEqual(store.hour, 9)
++        XCTAssertEqual(store.minute, 0)
++        XCTAssertEqual(scheduler.authorizationRequests, 0, "creating the store must never prompt")
++        XCTAssertTrue(scheduler.scheduled.isEmpty, "creating the store must never schedule")
++    }
++
++    func test_enableRequestsPermissionThenSchedulesAndPersists() async {
++        let store = makeStore()
++        await store.setEnabled(true)
++
++        XCTAssertEqual(scheduler.authorizationRequests, 1)
++        XCTAssertEqual(scheduler.scheduled.count, 1)
++        let request = scheduler.scheduled[0]
++        XCTAssertEqual(request.id, DailyReminderStore.Constants.requestID)
++        XCTAssertEqual(request.hour, 9)
++        XCTAssertEqual(request.minute, 0)
++        XCTAssertTrue(store.isEnabled)
++        XCTAssertFalse(store.permissionDenied)
++
++        let reloaded = makeStore()
++        XCTAssertTrue(reloaded.isEnabled, "enabled state persists across recreation")
++    }
++
++    func test_deniedPermissionLeavesReminderDisabled() async {
++        scheduler.grantsAuthorization = false
++        let store = makeStore()
++        await store.setEnabled(true)
++
++        XCTAssertFalse(store.isEnabled)
++        XCTAssertTrue(store.permissionDenied)
++        XCTAssertTrue(scheduler.scheduled.isEmpty, "nothing is scheduled without permission")
++        XCTAssertFalse(makeStore().isEnabled, "denied attempt is not persisted as enabled")
++    }
++
++    func test_disableCancelsPendingReminderAndPersists() async {
++        let store = makeStore()
++        await store.setEnabled(true)
++        await store.setEnabled(false)
++
++        XCTAssertFalse(store.isEnabled)
++        XCTAssertEqual(scheduler.cancelled, [DailyReminderStore.Constants.requestID])
++        XCTAssertFalse(makeStore().isEnabled)
++    }
++
++    func test_timeChangeWhileEnabledReschedulesAndPersists() async {
++        let store = makeStore()
++        await store.setEnabled(true)
++        await store.setTime(hour: 18, minute: 30)
++
++        XCTAssertEqual(scheduler.scheduled.count, 2, "time change reschedules")
++        XCTAssertEqual(scheduler.scheduled.last?.hour, 18)
++        XCTAssertEqual(scheduler.scheduled.last?.minute, 30)
++
++        let reloaded = makeStore()
++        XCTAssertEqual(reloaded.hour, 18)
++        XCTAssertEqual(reloaded.minute, 30)
++    }
++
++    func test_timeChangeWhileDisabledDoesNotSchedule() async {
++        let store = makeStore()
++        await store.setTime(hour: 7, minute: 15)
++
++        XCTAssertTrue(scheduler.scheduled.isEmpty, "disabled reminder never schedules")
++        XCTAssertEqual(makeStore().hour, 7)
++        XCTAssertEqual(makeStore().minute, 15)
++    }
++
++    func test_notificationCopyIsARestrainedReminder() {
++        // The body must stay a plain reminder — it can't claim a model
++        // shipped or a check completed, because nothing was fetched.
++        XCTAssertEqual(DailyReminderStore.Constants.title, "Release Model Radar")
++        XCTAssertEqual(DailyReminderStore.Constants.body, "Check today’s model updates.")
++    }
++
++    func test_refreshFlagsRevokedPermissionOnlyWhenEnabled() async {
++        let store = makeStore()
++        await store.setEnabled(true)
++        scheduler.status = .denied // user revoked in iOS Settings later
++
++        await store.refreshPermissionStatus()
++        XCTAssertTrue(store.permissionDenied)
++
++        await store.setEnabled(false)
++        await store.refreshPermissionStatus()
++        XCTAssertFalse(store.permissionDenied, "no warning when the reminder is off")
++    }
++}
+-- 
+2.43.0
+
