@@ -1,9 +1,2 @@
-9241726b53aea8e5a60a709d5a2533927b12997772443de5b37b32252e3bc73a  0001-Add-native-release-timeline.patch
-69c2f53234502ba49a47d85286da2e5bc37c9f3f5f205e164e8b9b552ee3fc92  0002-Fix-iOS-MVP-review-blockers.patch
-65ac5e48b0166c949ec0856e3f3816f718eb3376c307419a16e37a19b5668e3e  0003-Add-Tune-Radar-onboarding-and-settings.patch
-d407de28f7d2245d2aeb20dd13f5b223d36fda14c4322a0e3a62eecc8425bc5c  0004-Add-Why-it-matters-to-you-personalization-layer.patch
-5d1e7a130b0795dde304564eb5e526d7ffae8218c5bb2c6a387d9e704b82c5e0  release-model-radar-ios.tar.gz
-f143ef7e67b3418591fded74900fd211d891f760e7cad1bacd7c5922cedffdf1  0005-Fix-Phase-5-Tune-Radar-settings-copy.patch
-6ae00e2649e5cc6ad44161346629894bb00028e69f29d29a226bb0b000e23216  0006-Clarify-guidance-layers.patch
-6b463c4df254a1862ec56ded5462e5cb8161db58ea1063ffb3487f356607f042  0007-Update-README-for-public-iOS-project-state.patch
-79ce2f5537a176b85ade73b70d7b6c796804f9288c08303b3a1979bf88f7b646  0008-Make-Why-it-matters-copy-model-specific.patch
+6d83a4fcd629a5149991be4b5da90dd2a9a218f3af53e3289269ed5ab75f1a3d  0009-Add-offline-cache-and-lab-favourites.patch
+54bbcc5b33c58058f0acb27b2dd7797891905af3d95414d3d716fabd334804bb  release-model-radar-ios.tar.gz

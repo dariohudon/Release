@@ -1,0 +1,784 @@
+From 1524eacb849f5fdb0333def4d39d98874d738e40 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 06:12:09 +0000
+Subject: [PATCH] Add offline response cache and lab favourites with new-info
+ indicators
+
+---
+ README.md                                     |  18 ++-
+ ReleaseModelRadar/API/APIClient.swift         |  63 ++++++++--
+ .../API/LocalAPIResponseCache.swift           |  46 +++++++
+ ReleaseModelRadar/Components/StateViews.swift |  23 ++++
+ .../Components/StatusBadge.swift              |   6 +-
+ .../Definitions/DefinitionsView.swift         |  38 ++++--
+ .../Features/Labs/LabFavoritesStore.swift     | 107 ++++++++++++++++
+ .../Features/Labs/LabsView.swift              | 118 +++++++++++++++---
+ .../Features/Models/ModelsView.swift          |  15 ++-
+ .../Features/News/NewsView.swift              |  18 ++-
+ ReleaseModelRadar/ReleaseModelRadarApp.swift  |   3 +
+ docs/ios-mvp-plan.md                          |  17 +--
+ 12 files changed, 410 insertions(+), 62 deletions(-)
+ create mode 100644 ReleaseModelRadar/API/LocalAPIResponseCache.swift
+ create mode 100644 ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+
+diff --git a/README.md b/README.md
+index e8ba73d..ba97742 100644
+--- a/README.md
++++ b/README.md
+@@ -11,7 +11,7 @@ on the next fetch.
+ | Tab | What it does |
+ |---|---|
+ | **Radar** | Release timeline (lab-colored dots, today marker, tap-to-detail) and the model list grouped by release state — Just shipped / Live now / On the horizon — with at-a-glance usefulness pills. Tap a model for the full detail screen: specs, strengths, watch-outs, guidance, community signal, lab link. |
+-| **Labs** | Every tracked lab with its color and model count. |
++| **Labs** | Every tracked lab with its color and model count. Star a lab to favourite it (stored on device); a favourites filter and an in-app “New info” dot show when a favourited lab's public data changed since your last refresh. |
+ | **Definitions** | Searchable plain-English glossary of model-release language; tap a term to expand. |
+ | **News** | Recent lab announcements, newest first, with official vs news-search source tags. |
+ | **Settings** | Tune Radar preferences (view, edit, reset) and app info. |
+@@ -39,6 +39,13 @@ later in Settings.
+   personalization, no analytics, no tracking.
+ - The app is read-only: it has no mutation routes and cannot change
+   anything upstream.
++- Lab favourites are stored locally and never synced to a server.
++- The app keeps the last successful API responses on device so it still
++  works offline, with a gentle “Offline — last updated …” notice. The
++  cache holds only public data and never overwrites good data with a
++  failed request.
++- New-info indicators are in-app only — no system notifications, and the
++  app never requests notification permissions.
+ 
+ ## Development status
+ 
+@@ -46,16 +53,17 @@ later in Settings.
+ 
+ - Phase 3 — iOS MVP baseline (`mvp-ios-phase-3-lock`)
+ - Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
++- Phase 5 — Personalized recommendation layer (`phase-5-personalized-recommendation-lock`)
+ 
+ **In review**
+ 
+-- Phase 5 — Personalized recommendation layer ("Why it matters to you") —
+-  implemented on `ios-personalized-recommendation-layer`, awaiting review
+-  before merge/lock.
++- Phase 6 — Persistent offline cache + lab favourites with in-app
++  new-info indicators — implemented on `ios-offline-cache-lab-favourites`,
++  awaiting review before merge/lock.
++
+ 
+ **Future**
+ 
+-- Phase 6 — Persistent offline cache + favourites
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — Widgets + daily check notifications
+ - Phase 9 — App Store / TestFlight readiness
+diff --git a/ReleaseModelRadar/API/APIClient.swift b/ReleaseModelRadar/API/APIClient.swift
+index 77fedab..fe4adb4 100644
+--- a/ReleaseModelRadar/API/APIClient.swift
++++ b/ReleaseModelRadar/API/APIClient.swift
+@@ -2,8 +2,12 @@ import Foundation
+ 
+ /* Read-only client for the public Release Model Radar API.
+    No keys, no auth, no mutation — the web app is the source of truth.
+-   MVP cache policy: the last successful response per endpoint is kept in
+-   memory only and used as a fallback when the network fails. */
++
++   Cache policy (Phase 6): a response is cached in memory AND on disk only
++   after it fully decodes, so failed requests or bad payloads never replace
++   good data. When a fetch fails, the last good response is returned instead
++   and the caller is told it is cached (with its saved date) so screens can
++   show a gentle offline notice. */
+ 
+ enum APIError: LocalizedError {
+     case badURL
+@@ -23,12 +27,28 @@ enum APIError: LocalizedError {
+     }
+ }
+ 
++/// Where a returned value came from.
++enum DataSource {
++    case fresh
++    case cached(savedAt: Date)
++}
++
++struct FetchOutcome<T> {
++    let value: T
++    let source: DataSource
++
++    var cachedAt: Date? {
++        if case .cached(let savedAt) = source { return savedAt }
++        return nil
++    }
++}
++
+ actor APIClient {
+     static let shared = APIClient()
+     static let baseURL = URL(string: "https://release.brightening.ca")!
+ 
+     private let session: URLSession
+-    private var memoryCache: [String: Data] = [:]
++    private var memoryCache: [String: (data: Data, savedAt: Date)] = [:]
+ 
+     init() {
+         let config = URLSessionConfiguration.default
+@@ -36,37 +56,54 @@ actor APIClient {
+         session = URLSession(configuration: config)
+     }
+ 
++    /// Convenience for callers that don't care about the source.
+     func fetch<T: Decodable>(_ path: String, as type: T.Type) async throws -> T {
++        try await fetchWithCache(path, as: type).value
++    }
++
++    /// Fetch with last-good-response fallback. Throws only when there is no
++    /// usable cache, or when the server gave an authoritative ok:false
++    /// answer (which should not be masked by stale data).
++    func fetchWithCache<T: Decodable>(_ path: String, as type: T.Type) async throws -> FetchOutcome<T> {
+         guard let url = URL(string: path, relativeTo: Self.baseURL) else {
+             throw APIError.badURL
+         }
+         do {
+             let (data, response) = try await session.data(from: url)
+             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+-                // The API uses the failure envelope with non-2xx codes (e.g.
+-                // 404 for "no update check recorded yet") — surface its safe
+-                // message rather than a bare status code where possible.
+                 if let envelope = try? JSONDecoder().decode(Envelope<T>.self, from: data),
+                    envelope.ok == false {
+                     throw APIError.api(envelope.error ?? "Request failed.")
+                 }
+                 throw APIError.http(http.statusCode)
+             }
+-            // Decode FIRST — only a response that fully decodes counts as
+-            // "last successful" and earns a place in the fallback cache.
++            // Decode FIRST — only a fully decoded response earns the cache.
+             let value: T = try decodeEnvelope(data)
+-            memoryCache[path] = data
+-            return value
++            memoryCache[path] = (data, Date())
++            await LocalAPIResponseCache.shared.save(data, for: path)
++            return FetchOutcome(value: value, source: .fresh)
+         } catch let error as APIError {
++            if case .api = error { throw error } // authoritative server answer
++            if let fallback: FetchOutcome<T> = await cachedFallback(for: path) { return fallback }
+             throw error
+         } catch {
+-            if let cached = memoryCache[path], let value: T = try? decodeEnvelope(cached) {
+-                return value
+-            }
++            if let fallback: FetchOutcome<T> = await cachedFallback(for: path) { return fallback }
+             throw APIError.network(error.localizedDescription)
+         }
+     }
+ 
++    private func cachedFallback<T: Decodable>(for path: String) async -> FetchOutcome<T>? {
++        if let entry = memoryCache[path], let value: T = try? decodeEnvelope(entry.data) {
++            return FetchOutcome(value: value, source: .cached(savedAt: entry.savedAt))
++        }
++        if let disk = await LocalAPIResponseCache.shared.load(for: path),
++           let value: T = try? decodeEnvelope(disk.data) {
++            memoryCache[path] = (disk.data, disk.savedAt) // hydrate for this session
++            return FetchOutcome(value: value, source: .cached(savedAt: disk.savedAt))
++        }
++        return nil
++    }
++
+     private func decodeEnvelope<T: Decodable>(_ data: Data) throws -> T {
+         let envelope: Envelope<T>
+         do {
+diff --git a/ReleaseModelRadar/API/LocalAPIResponseCache.swift b/ReleaseModelRadar/API/LocalAPIResponseCache.swift
+new file mode 100644
+index 0000000..b066190
+--- /dev/null
++++ b/ReleaseModelRadar/API/LocalAPIResponseCache.swift
+@@ -0,0 +1,46 @@
++import Foundation
++
++/* Persistent last-good response cache (Phase 6).
++
++   Local-only disk cache in Library/Caches. APIClient writes here ONLY after
++   a response has fully decoded, so a failed request or undecodable payload
++   can never replace good data. Each entry records when it was saved so the
++   UI can show "Offline — last updated …". Nothing here ever leaves the
++   device, and the cache holds only public read-only API data. */
++
++actor LocalAPIResponseCache {
++    static let shared = LocalAPIResponseCache()
++
++    private struct Entry: Codable {
++        let savedAt: Date
++        let data: Data
++    }
++
++    private let directory: URL
++
++    init(directoryName: String = "APIResponseCache") {
++        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
++            ?? FileManager.default.temporaryDirectory
++        directory = base.appendingPathComponent(directoryName, isDirectory: true)
++        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++    }
++
++    /// Called only with data that already decoded successfully.
++    func save(_ data: Data, for path: String) {
++        let entry = Entry(savedAt: Date(), data: data)
++        guard let encoded = try? JSONEncoder().encode(entry) else { return }
++        try? encoded.write(to: fileURL(for: path), options: .atomic)
++    }
++
++    func load(for path: String) -> (data: Data, savedAt: Date)? {
++        guard let raw = try? Data(contentsOf: fileURL(for: path)),
++              let entry = try? JSONDecoder().decode(Entry.self, from: raw)
++        else { return nil }
++        return (entry.data, entry.savedAt)
++    }
++
++    private func fileURL(for path: String) -> URL {
++        let safeName = String(path.map { $0.isLetter || $0.isNumber ? $0 : "-" })
++        return directory.appendingPathComponent(safeName + ".json")
++    }
++}
+diff --git a/ReleaseModelRadar/Components/StateViews.swift b/ReleaseModelRadar/Components/StateViews.swift
+index e0a803f..3137417 100644
+--- a/ReleaseModelRadar/Components/StateViews.swift
++++ b/ReleaseModelRadar/Components/StateViews.swift
+@@ -79,6 +79,29 @@ struct EmptyStateView: View {
+     }
+ }
+ 
++/// Gentle notice shown when a screen is rendering last-saved (cached) data.
++struct CachedDataNotice: View {
++    let savedAt: Date?
++
++    var body: some View {
++        HStack(spacing: 7) {
++            Image(systemName: "wifi.slash")
++                .font(.system(size: 11))
++            Text(label)
++                .font(.system(size: 11, design: .monospaced))
++        }
++        .foregroundStyle(Theme.muted)
++        .frame(maxWidth: .infinity, alignment: .leading)
++    }
++
++    private var label: String {
++        if let savedAt {
++            return "Offline — last updated \(savedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
++        }
++        return "Offline — showing last saved data"
++    }
++}
++
+ /// Small uppercase mono pill, the iOS cousin of the web app's tags.
+ struct Pill: View {
+     let text: String
+diff --git a/ReleaseModelRadar/Components/StatusBadge.swift b/ReleaseModelRadar/Components/StatusBadge.swift
+index 56671f3..00a854c 100644
+--- a/ReleaseModelRadar/Components/StatusBadge.swift
++++ b/ReleaseModelRadar/Components/StatusBadge.swift
+@@ -34,8 +34,10 @@ struct StatusBadgeView: View {
+ 
+     private func load() async {
+         do {
+-            let status = try await APIClient.shared.fetch("/api/update-status", as: UpdateStatus.self)
+-            state = .loaded(status)
++            // Cached fallback is fine here: the badge's own staleness logic
++            // (>36h → "Stale") already communicates an old value honestly.
++            let outcome = try await APIClient.shared.fetchWithCache("/api/update-status", as: UpdateStatus.self)
++            state = .loaded(outcome.value)
+         } catch {
+             state = .failed(error.localizedDescription)
+         }
+diff --git a/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift b/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
+index 658c469..1460eb3 100644
+--- a/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
++++ b/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
+@@ -5,6 +5,8 @@ struct DefinitionsView: View {
+     @State private var state: Loadable<DefinitionsPayload> = .loading
+     @State private var query = ""
+     @State private var expanded: Set<String> = []
++    @State private var cachedAt: Date?
++    @State private var isCached = false
+ 
+     var body: some View {
+         NavigationStack {
+@@ -23,21 +25,28 @@ struct DefinitionsView: View {
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
+         case .loaded(let payload):
+-            List(filtered(payload.definitions)) { definition in
+-                DefinitionRow(
+-                    definition: definition,
+-                    isExpanded: expanded.contains(definition.id)
+-                ) {
+-                    withAnimation(.easeInOut(duration: 0.18)) {
+-                        if expanded.contains(definition.id) {
+-                            expanded.remove(definition.id)
+-                        } else {
+-                            expanded.insert(definition.id)
++            List {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                }
++                ForEach(filtered(payload.definitions)) { definition in
++                    DefinitionRow(
++                        definition: definition,
++                        isExpanded: expanded.contains(definition.id)
++                    ) {
++                        withAnimation(.easeInOut(duration: 0.18)) {
++                            if expanded.contains(definition.id) {
++                                expanded.remove(definition.id)
++                            } else {
++                                expanded.insert(definition.id)
++                            }
+                         }
+                     }
++                    .listRowBackground(Theme.panel)
++                    .listRowSeparatorTint(Theme.line)
+                 }
+-                .listRowBackground(Theme.panel)
+-                .listRowSeparatorTint(Theme.line)
+             }
+             .radarListStyle()
+             .searchable(text: $query, prompt: "Search terms (context, tokens, MCP…)")
+@@ -67,7 +76,10 @@ struct DefinitionsView: View {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+         do {
+-            state = .loaded(try await APIClient.shared.fetch("/api/definitions", as: DefinitionsPayload.self))
++            let outcome = try await APIClient.shared.fetchWithCache("/api/definitions", as: DefinitionsPayload.self)
++            isCached = outcome.cachedAt != nil
++            cachedAt = outcome.cachedAt
++            state = .loaded(outcome.value)
+         } catch {
+             state = .failed(error.localizedDescription)
+         }
+diff --git a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+new file mode 100644
+index 0000000..3c520ec
+--- /dev/null
++++ b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+@@ -0,0 +1,107 @@
++import Foundation
++import SwiftUI
++
++/* Lab favourites + in-app "new info" indicators (Phase 6).
++
++   Local-only, UserDefaults-backed, keyed by the API's stable lab ids.
++   Indicators are computed transparently: after a FRESH (not cached) load,
++   the new data is compared against the previous snapshot, and a favourited
++   lab is flagged when its public model count or its latest news headline
++   changed. Purely in-app — no system notifications, no permissions, no
++   server sync. All UserDefaults access for favourites lives here. */
++
++@MainActor
++final class LabFavoritesStore: ObservableObject {
++
++    private enum Key {
++        static let favorites = "labs.favorites"
++        static let newInfo = "labs.newInfo"
++        static let modelCounts = "labs.snapshot.modelCounts"
++        static let latestNews = "labs.snapshot.latestNews"
++    }
++
++    @Published private(set) var favoriteIDs: Set<String>
++    @Published private(set) var newInfoLabIDs: Set<String>
++
++    private let defaults: UserDefaults
++
++    init(defaults: UserDefaults = .standard) {
++        self.defaults = defaults
++        favoriteIDs = Set(defaults.stringArray(forKey: Key.favorites) ?? [])
++        newInfoLabIDs = Set(defaults.stringArray(forKey: Key.newInfo) ?? [])
++    }
++
++    // ── Favourites ────────────────────────────────────────────────────────────
++
++    func isFavorite(_ id: String) -> Bool {
++        favoriteIDs.contains(id)
++    }
++
++    func toggle(_ id: String) {
++        if favoriteIDs.contains(id) {
++            favoriteIDs.remove(id)
++            clearNewInfo(for: id) // unfavouriting also retires its indicator
++        } else {
++            favoriteIDs.insert(id)
++        }
++        defaults.set(Array(favoriteIDs).sorted(), forKey: Key.favorites)
++    }
++
++    // ── New-info indicators (in-app only) ─────────────────────────────────────
++
++    /// Compare freshly loaded labs against the previous snapshot and flag
++    /// favourited labs whose public model count changed. Call only after a
++    /// fresh fetch — never for cached data.
++    func recordLabsSnapshot(_ labs: [Lab]) {
++        var snapshot = stringDictionary(Key.modelCounts)
++        var flagged = newInfoLabIDs
++        for lab in labs {
++            let fingerprint = String(lab.modelCount)
++            if favoriteIDs.contains(lab.id),
++               let previous = snapshot[lab.id],
++               previous != fingerprint {
++                flagged.insert(lab.id)
++            }
++            snapshot[lab.id] = fingerprint
++        }
++        defaults.set(snapshot, forKey: Key.modelCounts)
++        updateNewInfo(flagged)
++    }
++
++    /// Compare freshly loaded news against the previous snapshot and flag
++    /// favourited labs with a new latest headline. (Headline text is the
++    /// signal — item ids are positional and can repeat across refreshes.)
++    func recordNewsSnapshot(_ items: [NewsItem]) {
++        var snapshot = stringDictionary(Key.latestNews)
++        var flagged = newInfoLabIDs
++        var seenLabs: Set<String> = []
++        for item in items where !seenLabs.contains(item.lab) {
++            seenLabs.insert(item.lab) // items arrive newest first
++            if favoriteIDs.contains(item.lab),
++               let previous = snapshot[item.lab],
++               previous != item.title {
++                flagged.insert(item.lab)
++            }
++            snapshot[item.lab] = item.title
++        }
++        defaults.set(snapshot, forKey: Key.latestNews)
++        updateNewInfo(flagged)
++    }
++
++    /// Tapping a flagged lab row acknowledges its indicator.
++    func clearNewInfo(for id: String) {
++        guard newInfoLabIDs.contains(id) else { return }
++        newInfoLabIDs.remove(id)
++        defaults.set(Array(newInfoLabIDs).sorted(), forKey: Key.newInfo)
++    }
++
++    private func updateNewInfo(_ flagged: Set<String>) {
++        guard flagged != newInfoLabIDs else { return }
++        newInfoLabIDs = flagged
++        defaults.set(Array(flagged).sorted(), forKey: Key.newInfo)
++    }
++
++    private func stringDictionary(_ key: String) -> [String: String] {
++        (defaults.dictionary(forKey: key) as? [String: String]) ?? [:]
++    }
++}
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 52b275b..a8e56b2 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -1,14 +1,33 @@
+ import SwiftUI
+ 
+-/// Labs tab: every tracked lab with its color and model count.
++/* Labs tab: every tracked lab with its color and model count.
++   Phase 6: star to favourite (local-only), a favourites filter, an in-app
++   "new info" dot on favourited labs whose public data changed since the
++   last fresh load, and a gentle offline notice when showing cached data. */
++
+ struct LabsView: View {
++    @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<LabsPayload> = .loading
++    @State private var cachedAt: Date?
++    @State private var isCached = false
++    @State private var showFavoritesOnly = false
+ 
+     var body: some View {
+         NavigationStack {
+             content
+                 .navigationTitle("Labs")
+                 .background(Theme.bg)
++                .toolbar {
++                    ToolbarItem(placement: .topBarTrailing) {
++                        Button {
++                            showFavoritesOnly.toggle()
++                        } label: {
++                            Image(systemName: showFavoritesOnly ? "star.fill" : "star")
++                                .foregroundStyle(showFavoritesOnly ? Theme.warn : Theme.dim)
++                        }
++                        .accessibilityLabel(showFavoritesOnly ? "Show all labs" : "Show favourite labs only")
++                    }
++                }
+         }
+         .task { await load() }
+     }
+@@ -28,25 +47,39 @@ struct LabsView: View {
+                 retry: { Task { await load(force: true) } }
+             )
+         case .loaded(let payload):
+-            List(payload.labs) { lab in
+-                HStack(spacing: 12) {
+-                    Circle()
+-                        .fill(Theme.labColor(lab.color))
+-                        .frame(width: 12, height: 12)
+-                    Text(lab.name)
+-                        .font(.system(size: 15, weight: .medium))
+-                        .foregroundStyle(Theme.ink)
+-                    Spacer()
+-                    Text("\(lab.modelCount) model\(lab.modelCount == 1 ? "" : "s")")
+-                        .font(.system(size: 12, design: .monospaced))
+-                        .foregroundStyle(Theme.dim)
++            let visible = showFavoritesOnly
++                ? payload.labs.filter { favorites.isFavorite($0.id) }
++                : payload.labs
++
++            if visible.isEmpty {
++                EmptyStateView(
++                    icon: "star",
++                    title: "No favourite labs yet",
++                    message: "Tap the star on a lab to follow it. A dot appears here when a favourited lab has new info."
++                )
++            } else {
++                List {
++                    if isCached {
++                        CachedDataNotice(savedAt: cachedAt)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparator(.hidden)
++                    }
++                    ForEach(visible) { lab in
++                        LabRow(
++                            lab: lab,
++                            isFavorite: favorites.isFavorite(lab.id),
++                            hasNewInfo: favorites.newInfoLabIDs.contains(lab.id),
++                            onToggleFavorite: { favorites.toggle(lab.id) }
++                        )
++                        .contentShape(Rectangle())
++                        .onTapGesture { favorites.clearNewInfo(for: lab.id) }
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparatorTint(Theme.line)
++                    }
+                 }
+-                .padding(.vertical, 4)
+-                .listRowBackground(Theme.panel)
+-                .listRowSeparatorTint(Theme.line)
++                .radarListStyle()
++                .refreshable { await load(force: true) }
+             }
+-            .radarListStyle()
+-            .refreshable { await load(force: true) }
+         }
+     }
+ 
+@@ -54,9 +87,56 @@ struct LabsView: View {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+         do {
+-            state = .loaded(try await APIClient.shared.fetch("/api/labs", as: LabsPayload.self))
++            let outcome = try await APIClient.shared.fetchWithCache("/api/labs", as: LabsPayload.self)
++            isCached = outcome.cachedAt != nil
++            cachedAt = outcome.cachedAt
++            if case .fresh = outcome.source {
++                favorites.recordLabsSnapshot(outcome.value.labs)
++            }
++            state = .loaded(outcome.value)
+         } catch {
+             state = .failed(error.localizedDescription)
+         }
+     }
+ }
++
++struct LabRow: View {
++    let lab: Lab
++    let isFavorite: Bool
++    let hasNewInfo: Bool
++    let onToggleFavorite: () -> Void
++
++    var body: some View {
++        HStack(spacing: 12) {
++            Circle()
++                .fill(Theme.labColor(lab.color))
++                .frame(width: 12, height: 12)
++            Text(lab.name)
++                .font(.system(size: 15, weight: .medium))
++                .foregroundStyle(Theme.ink)
++            if hasNewInfo {
++                HStack(spacing: 4) {
++                    Circle().fill(Theme.good).frame(width: 6, height: 6)
++                    Text("New info")
++                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
++                        .foregroundStyle(Theme.good)
++                }
++                .accessibilityLabel("New info since your last visit")
++            }
++            Spacer()
++            Text("\(lab.modelCount) model\(lab.modelCount == 1 ? "" : "s")")
++                .font(.system(size: 12, design: .monospaced))
++                .foregroundStyle(Theme.dim)
++            Button(action: onToggleFavorite) {
++                Image(systemName: isFavorite ? "star.fill" : "star")
++                    .font(.system(size: 15))
++                    .foregroundStyle(isFavorite ? Theme.warn : Theme.dim)
++                    .frame(width: 34, height: 34)
++                    .contentShape(Rectangle())
++            }
++            .buttonStyle(.plain)
++            .accessibilityLabel(isFavorite ? "Unfavourite \(lab.name)" : "Favourite \(lab.name)")
++        }
++        .padding(.vertical, 4)
++    }
++}
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index fa4d9f2..e370dad 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -6,6 +6,8 @@ struct ModelsView: View {
+     @State private var labColors: [String: String] = [:]
+     @State private var labNames: [String: String] = [:]
+     @State private var path: [RadarModel] = []
++    @State private var cachedAt: Date?
++    @State private var isCached = false
+ 
+     private let statusOrder = ["new", "live", "horizon"]
+ 
+@@ -38,6 +40,13 @@ struct ModelsView: View {
+             )
+         case .loaded(let payload):
+             List {
++                if isCached {
++                    Section {
++                        CachedDataNotice(savedAt: cachedAt)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparator(.hidden)
++                    }
++                }
+                 // Release timeline first, like the web app: header → timeline → cards
+                 Section {
+                     ReleaseTimelineView(models: payload.models, labColors: labColors) { model in
+@@ -96,13 +105,15 @@ struct ModelsView: View {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+         do {
+-            let payload = try await APIClient.shared.fetch("/api/models", as: ModelsPayload.self)
++            let outcome = try await APIClient.shared.fetchWithCache("/api/models", as: ModelsPayload.self)
++            isCached = outcome.cachedAt != nil
++            cachedAt = outcome.cachedAt
+             // Lab colors are presentation sugar — never fail the screen over them.
+             if let labs = try? await APIClient.shared.fetch("/api/labs", as: LabsPayload.self) {
+                 labColors = Dictionary(uniqueKeysWithValues: labs.labs.map { ($0.id, $0.color) })
+                 labNames = Dictionary(uniqueKeysWithValues: labs.labs.map { ($0.id, $0.name) })
+             }
+-            state = .loaded(payload)
++            state = .loaded(outcome.value)
+         } catch {
+             state = .failed(error.localizedDescription)
+         }
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 8463c7f..4be9b0e 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -2,7 +2,10 @@ import SwiftUI
+ 
+ /// News tab: recent lab announcements from the /api/news feed.
+ struct NewsView: View {
++    @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<NewsPayload> = .loading
++    @State private var cachedAt: Date?
++    @State private var isCached = false
+ 
+     var body: some View {
+         NavigationStack {
+@@ -29,6 +32,13 @@ struct NewsView: View {
+             )
+         case .loaded(let payload):
+             List {
++                if isCached {
++                    Section {
++                        CachedDataNotice(savedAt: cachedAt)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparator(.hidden)
++                    }
++                }
+                 if let failed = payload.failedLabs, !failed.isEmpty {
+                     Section {
+                         Text("Unreachable right now: \(failed.joined(separator: ", "))")
+@@ -54,7 +64,13 @@ struct NewsView: View {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+         do {
+-            state = .loaded(try await APIClient.shared.fetch("/api/news", as: NewsPayload.self))
++            let outcome = try await APIClient.shared.fetchWithCache("/api/news", as: NewsPayload.self)
++            isCached = outcome.cachedAt != nil
++            cachedAt = outcome.cachedAt
++            if case .fresh = outcome.source {
++                favorites.recordNewsSnapshot(outcome.value.items)
++            }
++            state = .loaded(outcome.value)
+         } catch {
+             state = .failed(error.localizedDescription)
+         }
+diff --git a/ReleaseModelRadar/ReleaseModelRadarApp.swift b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+index 8a448f3..d300b29 100644
+--- a/ReleaseModelRadar/ReleaseModelRadarApp.swift
++++ b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+@@ -13,6 +13,7 @@ struct ReleaseModelRadarApp: App {
+ 
+ struct RootView: View {
+     @StateObject private var tuneRadar = TuneRadarPreferencesStore()
++    @StateObject private var favorites = LabFavoritesStore()
+ 
+     var body: some View {
+         TabView {
+@@ -20,6 +21,7 @@ struct RootView: View {
+                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
+             LabsView()
+                 .tabItem { Label("Labs", systemImage: "building.2") }
++                .badge(favorites.newInfoLabIDs.count) // in-app only; zero hides it
+             DefinitionsView()
+                 .tabItem { Label("Definitions", systemImage: "book") }
+             NewsView()
+@@ -28,6 +30,7 @@ struct RootView: View {
+                 .tabItem { Label("Settings", systemImage: "gearshape") }
+         }
+         .environmentObject(tuneRadar)
++        .environmentObject(favorites)
+         // First launch (or after a reset): present Tune Radar while
+         // preferences are incomplete and the user hasn't saved or skipped.
+         .fullScreenCover(isPresented: showOnboarding) {
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 5c5bf25..be05c1f 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -53,8 +53,8 @@ ReleaseModelRadar/
+ ```
+ 
+ State pattern: each screen owns `@State var state: Loadable<Payload>` and a
+-`load(force:)` — no view-model layer yet; introduce one when Phase 6 adds
+-persistence and favourites.
++`load(force:)` — no view-model layer yet; introduce one if a
++later phase genuinely needs it.
+ 
+ ## Roadmap
+ 
+@@ -62,10 +62,13 @@ persistence and favourites.
+ - Phase 4 — ✅ locked: Settings tab + Tune Radar onboarding
+   (`phase-4-tune-radar-settings-lock`); two questions, UserDefaults-only,
+   skippable, editable/resettable
+-- Phase 5 — in review: personalized "Why it matters to you" layer
+-  (`TuneRadarRecommendation.swift`), computed on device from the Tune Radar
+-  answers; no backend, no analytics
+-- Phase 6 — persistent offline cache + favourites (local only)
++- Phase 5 — ✅ locked: personalized "Why it matters to you" layer
++  (`phase-5-personalized-recommendation-lock`)
++- Phase 6 — in review: persistent offline cache (last-good responses on
++  disk via `LocalAPIResponseCache`, written only after successful decode,
++  gentle "Offline — last updated …" notices) + lab favourites with in-app
++  new-info indicators (`LabFavoritesStore`, UserDefaults-only, no
++  notifications, no permissions, no sync)
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+@@ -76,7 +79,7 @@ The app intentionally sets `.preferredColorScheme(.dark)`: every design
+ token mirrors the web app's dark navy palette, and system-light chrome over
+ those hardcoded surfaces would render broken (dark text on dark panels).
+ Honouring the system appearance properly means a semantic/light token set —
+-a deliberate Phase 6+ task, not a quick toggle.
++a deliberate later-phase task, not a quick toggle.
+ 
+ ## Release status
+ 
+-- 
+2.43.0
+
