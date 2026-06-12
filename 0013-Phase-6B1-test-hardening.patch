@@ -1,0 +1,165 @@
+From c34200a430ce22791e1a0ba001ad5bf2e0c86b80 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 07:34:07 +0000
+Subject: [PATCH] Phase 6B.1 test and cache hardening
+
+---
+ .../Features/Labs/LabFavoritesStore.swift     |  6 ++++
+ .../APIClientCachePolicyTests.swift           | 33 ++++++++++++++++++-
+ .../LabFavoritesStoreTests.swift              | 21 ++++++++++++
+ .../LocalAPIResponseCacheTests.swift          | 28 ++++++++++++++--
+ 4 files changed, 85 insertions(+), 3 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+index 51e4f03..afbd742 100644
+--- a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
++++ b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+@@ -57,6 +57,12 @@ final class LabFavoritesStore: ObservableObject {
+     /// renamed/removed lab can never wedge the favourites list or leave a
+     /// permanent ghost indicator.
+     func recordLabsSnapshot(_ labs: [Lab]) {
++        // Guard: one unexpectedly empty (but successful) labs payload must
++        // not wipe favourites or snapshots — skip entirely and wait for the
++        // next non-empty refresh. Pruning only ever runs against a payload
++        // that contains at least one lab.
++        guard !labs.isEmpty else { return }
++
+         var snapshot = stringDictionary(Key.modelCounts)
+         var flagged = newInfoLabIDs
+         for lab in labs {
+diff --git a/ReleaseModelRadarTests/APIClientCachePolicyTests.swift b/ReleaseModelRadarTests/APIClientCachePolicyTests.swift
+index 98112aa..9c9ff9b 100644
+--- a/ReleaseModelRadarTests/APIClientCachePolicyTests.swift
++++ b/ReleaseModelRadarTests/APIClientCachePolicyTests.swift
+@@ -43,6 +43,11 @@ final class APIClientCachePolicyTests: XCTestCase {
+ 
+     override func tearDown() {
+         MockURLProtocol.handler = nil
++        // Remove this test's temporary cache directory (never the app's
++        // real APIResponseCache directory).
++        try? FileManager.default.removeItem(
++            at: LocalAPIResponseCacheTests.cachesURL(for: cacheDirectory)
++        )
+         super.tearDown()
+     }
+ 
+@@ -97,10 +102,36 @@ final class APIClientCachePolicyTests: XCTestCase {
+         XCTAssertEqual(outcome.value, Payload(value: "A"))
+         guard case .cached = outcome.source else { return XCTFail("expected .cached") }
+ 
+-        // Still good after another failure round (cache was not poisoned).
++        // Still good after another failure round (memory was not poisoned).
+         failNetwork()
+         let again = try await client.fetchWithCache("/api/test", as: Payload.self)
+         XCTAssertEqual(again.value, Payload(value: "A"))
++
++        // Strongest proof: a brand-new client (empty memory, same disk
++        // directory) with no network must still serve the good value —
++        // i.e. the ON-DISK cache was never overwritten by the garbage.
++        let recreated = makeClient()
++        failNetwork()
++        let fromDisk = try await recreated.fetchWithCache("/api/test", as: Payload.self)
++        XCTAssertEqual(fromDisk.value, Payload(value: "A"))
++        guard case .cached = fromDisk.source else { return XCTFail("expected .cached from disk") }
++    }
++
++    /// ok:false with HTTP 200 (not just 404) is still an authoritative
++    /// server answer — it must throw and must not be masked by stale cache.
++    func test_okFalseWithHTTP200IsNotMaskedByCache() async throws {
++        let client = makeClient()
++        respond(status: 200, body: goodA)
++        _ = try await client.fetchWithCache("/api/test", as: Payload.self)
++
++        respond(status: 200, body: #"{"ok":false,"generatedAt":"2026-06-12T00:00:00.000Z","error":"temporarily unavailable","data":null}"#)
++        do {
++            _ = try await client.fetchWithCache("/api/test", as: Payload.self)
++            XCTFail("expected APIError.api to be thrown")
++        } catch let error as APIError {
++            guard case .api(let message) = error else { return XCTFail("expected .api, got \(error)") }
++            XCTAssertEqual(message, "temporarily unavailable")
++        }
+     }
+ 
+     func test_authoritativeOkFalseIsNotMaskedByCache() async throws {
+diff --git a/ReleaseModelRadarTests/LabFavoritesStoreTests.swift b/ReleaseModelRadarTests/LabFavoritesStoreTests.swift
+index f0684ad..e10bd8e 100644
+--- a/ReleaseModelRadarTests/LabFavoritesStoreTests.swift
++++ b/ReleaseModelRadarTests/LabFavoritesStoreTests.swift
+@@ -91,6 +91,27 @@ final class LabFavoritesStoreTests: XCTestCase {
+         XCTAssertTrue(reloaded.newInfoLabIDs.isEmpty)
+     }
+ 
++    /// One unexpectedly empty (but successful) labs payload must not wipe
++    /// favourites or snapshots; pruning resumes on the next non-empty load.
++    func test_emptyLabsPayloadDoesNotWipeFavourites() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++
++        store.recordLabsSnapshot([])
++        XCTAssertTrue(store.isFavorite("anthropic"), "empty payload must not prune favourites")
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty)
++
++        // Snapshot survived the empty payload: a changed count still flags.
++        store.recordLabsSnapshot([lab("anthropic", count: 6)])
++        XCTAssertEqual(store.newInfoLabIDs, ["anthropic"])
++
++        // Pruning still works against a NON-empty payload missing the lab.
++        store.recordLabsSnapshot([lab("google", count: 4)])
++        XCTAssertFalse(store.isFavorite("anthropic"))
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty)
++    }
++
+     func test_unfavouritingClearsItsIndicator() {
+         let store = LabFavoritesStore(defaults: defaults)
+         store.toggle("meta")
+diff --git a/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift b/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
+index 3ca807a..56a89ca 100644
+--- a/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
++++ b/ReleaseModelRadarTests/LocalAPIResponseCacheTests.swift
+@@ -3,8 +3,32 @@ import XCTest
+ 
+ final class LocalAPIResponseCacheTests: XCTestCase {
+ 
++    private var createdDirectories: [String] = []
++
++    override func tearDown() {
++        // Remove only the temporary "Test-…" directories this test created —
++        // never the app's real APIResponseCache directory.
++        for name in createdDirectories {
++            try? FileManager.default.removeItem(at: Self.cachesURL(for: name))
++        }
++        createdDirectories = []
++        super.tearDown()
++    }
++
++    static func cachesURL(for directoryName: String) -> URL {
++        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
++            ?? FileManager.default.temporaryDirectory
++        return base.appendingPathComponent(directoryName, isDirectory: true)
++    }
++
++    private func makeDirectoryName() -> String {
++        let name = "Test-\(UUID().uuidString)"
++        createdDirectories.append(name)
++        return name
++    }
++
+     private func makeCache() -> LocalAPIResponseCache {
+-        LocalAPIResponseCache(directoryName: "Test-\(UUID().uuidString)")
++        LocalAPIResponseCache(directoryName: makeDirectoryName())
+     }
+ 
+     func test_saveAndLoadRoundtrip() async {
+@@ -36,7 +60,7 @@ final class LocalAPIResponseCacheTests: XCTestCase {
+ 
+     /// Disk entries must survive recreating the cache (≈ app relaunch).
+     func test_persistsAcrossInstances() async {
+-        let directory = "Test-\(UUID().uuidString)"
++        let directory = makeDirectoryName()
+         let first = LocalAPIResponseCache(directoryName: directory)
+         await first.save(Data("persisted".utf8), for: "/api/labs")
+ 
+-- 
+2.43.0
+
