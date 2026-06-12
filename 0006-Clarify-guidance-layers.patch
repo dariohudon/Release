@@ -1,0 +1,80 @@
+From 1736c0f081b848b9830ab86c19ae7717e3a92b31 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 04:38:09 +0000
+Subject: [PATCH] Clarify use/watch/ignore vs Useful for vs Why it matters
+ layers
+
+---
+ ReleaseModelRadar/API/APIModels.swift         |  2 +-
+ .../Features/Models/ModelDetailView.swift     | 28 ++++++++++++++++++-
+ 2 files changed, 28 insertions(+), 2 deletions(-)
+
+diff --git a/ReleaseModelRadar/API/APIModels.swift b/ReleaseModelRadar/API/APIModels.swift
+index 9e87d1a..b92cc1c 100644
+--- a/ReleaseModelRadar/API/APIModels.swift
++++ b/ReleaseModelRadar/API/APIModels.swift
+@@ -30,7 +30,7 @@ struct RadarModel: Decodable, Identifiable, Hashable {
+     let tags: [String]
+     let released: String
+     let status: String   // new | live | horizon
+-    let verdict: String  // use | watch | ignore
++    let verdict: String  // use | watch | ignore — at-a-glance public usefulness label, explained by `useFor`; never personalized
+     let confidence: String?
+     let tier: String
+     let bestAt: String
+diff --git a/ReleaseModelRadar/Features/Models/ModelDetailView.swift b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+index df55991..fb53f07 100644
+--- a/ReleaseModelRadar/Features/Models/ModelDetailView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+@@ -13,7 +13,7 @@ struct ModelDetailView: View {
+                 statGrid
+                 listSection(title: "STRONG AT", items: model.strengths, accent: Theme.good)
+                 listSection(title: "WATCH-OUTS", items: model.watchouts, accent: Theme.warn)
+-                textSection(title: "USEFUL FOR", text: model.useFor)
++                usefulForSection
+                 WhyItMattersCard(model: model)
+                 sentimentSection
+                 if let url = URL(string: model.link) {
+@@ -29,6 +29,12 @@ struct ModelDetailView: View {
+                         .background(labColor, in: RoundedRectangle(cornerRadius: 10))
+                     }
+                 }
++
++                // Legend: how the three guidance layers relate
++                Text("Use, Watch, and Ignore are quick public usefulness labels. \u{201C}Useful for\u{201D} explains the general reasoning. \u{201C}Why it matters to you\u{201D} uses your local Tune Radar choices.")
++                    .font(.system(size: 10.5))
++                    .foregroundStyle(Theme.dim)
++                    .frame(maxWidth: .infinity, alignment: .leading)
+             }
+             .padding(16)
+         }
+@@ -103,6 +109,26 @@ struct ModelDetailView: View {
+         }
+     }
+ 
++    /// The generic public explanation behind the use/watch/ignore pill —
++    /// the pill is repeated here so the connection is visible.
++    private var usefulForSection: some View {
++        VStack(alignment: .leading, spacing: 6) {
++            HStack(spacing: 8) {
++                Text("USEFUL FOR")
++                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
++                    .tracking(1.4)
++                    .foregroundStyle(Theme.dim)
++                Pill(text: model.verdict, color: model.verdictColor)
++            }
++            Text(model.useFor)
++                .font(.system(size: 13.5))
++                .foregroundStyle(Theme.muted)
++            Text("The \(model.verdict) label is quick public guidance; this is the reasoning behind it.")
++                .font(.system(size: 10.5))
++                .foregroundStyle(Theme.dim)
++        }
++    }
++
+     private func textSection(title: String, text: String) -> some View {
+         VStack(alignment: .leading, spacing: 6) {
+             Text(title)
+-- 
+2.43.0
+
