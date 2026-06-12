@@ -1,0 +1,614 @@
+From 3b538f98c62a914fad97eedf8683f88db4f07d24 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 08:02:43 +0000
+Subject: [PATCH] Add favourite lab activity surface
+
+---
+ .../Features/Labs/LabActivityView.swift       | 160 ++++++++++++++++++
+ .../Features/Labs/LabFavoritesStore.swift     | 121 +++++++++----
+ .../Features/Labs/LabsView.swift              |  53 +++++-
+ ReleaseModelRadarTests/LabActivityTests.swift | 130 ++++++++++++++
+ 4 files changed, 430 insertions(+), 34 deletions(-)
+ create mode 100644 ReleaseModelRadar/Features/Labs/LabActivityView.swift
+ create mode 100644 ReleaseModelRadarTests/LabActivityTests.swift
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabActivityView.swift b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+new file mode 100644
+index 0000000..a22cbb7
+--- /dev/null
++++ b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+@@ -0,0 +1,160 @@
++import SwiftUI
++
++/* Favourite Lab Activity (Phase 6C): an in-app sheet listing which
++   favourited labs have pending "new info", why (only the two locally
++   observed signals), and when this device noticed. Strictly local —
++   no notifications, no permissions, no sync. */
++
++struct LabActivityView: View {
++    let labs: [Lab]
++    let isCached: Bool
++    let cachedAt: Date?
++    let onSelect: (String) -> Void
++
++    @EnvironmentObject private var favorites: LabFavoritesStore
++    @Environment(\.dismiss) private var dismiss
++
++    private var entries: [(activity: LabActivity, lab: Lab?)] {
++        favorites.activity.values
++            .sorted { ($0.flaggedAt ?? .distantPast) > ($1.flaggedAt ?? .distantPast) }
++            .map { record in (record, labs.first { $0.id == record.labID }) }
++    }
++
++    var body: some View {
++        NavigationStack {
++            content
++                .navigationTitle("Lab Activity")
++                .navigationBarTitleDisplayMode(.inline)
++                .background(Theme.bg)
++                .toolbar {
++                    ToolbarItem(placement: .topBarLeading) {
++                        Button("Done") { dismiss() }
++                            .foregroundStyle(Theme.muted)
++                    }
++                    ToolbarItem(placement: .topBarTrailing) {
++                        Button("Mark all seen") {
++                            favorites.markAllSeen()
++                        }
++                        .foregroundStyle(favorites.activity.isEmpty ? Theme.dim : Theme.good)
++                        .disabled(favorites.activity.isEmpty)
++                        .accessibilityLabel("Mark all lab activity as seen")
++                        .accessibilityHint("Clears every new-info indicator.")
++                    }
++                }
++        }
++        .preferredColorScheme(.dark)
++    }
++
++    @ViewBuilder
++    private var content: some View {
++        if favorites.favoriteIDs.isEmpty {
++            EmptyStateView(
++                icon: "star",
++                title: "No favourite labs yet",
++                message: "Star a lab in the Labs list to follow it. Activity from favourited labs shows up here."
++            )
++        } else if entries.isEmpty {
++            VStack(spacing: 0) {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .padding(.horizontal, 16)
++                        .padding(.top, 12)
++                }
++                EmptyStateView(
++                    icon: "checkmark.circle",
++                    title: "All caught up",
++                    message: "No new activity from your favourite labs since your last check. New changes appear here after a refresh."
++                )
++            }
++            .background(Theme.bg)
++        } else {
++            List {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                }
++                ForEach(entries, id: \.activity.id) { entry in
++                    ActivityRow(
++                        activity: entry.activity,
++                        lab: entry.lab,
++                        onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) }
++                    )
++                    .contentShape(Rectangle())
++                    .onTapGesture {
++                        onSelect(entry.activity.labID)
++                        dismiss()
++                    }
++                    .listRowBackground(Theme.panel)
++                    .listRowSeparatorTint(Theme.line)
++                }
++            }
++            .scrollContentBackground(.hidden)
++            .background(Theme.bg)
++        }
++    }
++}
++
++private struct ActivityRow: View {
++    let activity: LabActivity
++    let lab: Lab?
++    let onAcknowledge: () -> Void
++
++    private var labName: String { lab?.name ?? activity.labID }
++
++    /// Honest reason line — only the signals actually recorded.
++    private var reasonText: String {
++        let hasCount = activity.reasons.contains(.modelCountChanged)
++        let hasNews = activity.reasons.contains(.newsHeadlineChanged)
++        switch (hasCount, hasNews) {
++        case (true, true): return "Model count and latest news changed"
++        case (true, false): return "Tracked model count changed"
++        case (false, true): return "Latest news headline changed"
++        case (false, false): return "New info available"
++        }
++    }
++
++    var body: some View {
++        HStack(alignment: .top, spacing: 12) {
++            Circle()
++                .fill(Theme.labColor(lab?.color))
++                .frame(width: 12, height: 12)
++                .padding(.top, 4)
++
++            VStack(alignment: .leading, spacing: 3) {
++                Text(labName)
++                    .font(.system(size: 15, weight: .semibold))
++                    .foregroundStyle(Theme.ink)
++                Text(reasonText)
++                    .font(.system(size: 12.5))
++                    .foregroundStyle(Theme.muted)
++                if let flaggedAt = activity.flaggedAt {
++                    Text("Noticed \(Fmt.relative(flaggedAt))")
++                        .font(.system(size: 11, design: .monospaced))
++                        .foregroundStyle(Theme.dim)
++                }
++            }
++
++            Spacer()
++
++            Button(action: onAcknowledge) {
++                Image(systemName: "checkmark.circle")
++                    .font(.system(size: 17))
++                    .foregroundStyle(Theme.good)
++                    .frame(width: 44, height: 44)
++                    .contentShape(Rectangle())
++            }
++            .buttonStyle(.plain)
++            .padding(.vertical, -8)
++            .padding(.trailing, -5)
++            .accessibilityLabel("Mark \(labName) activity as seen")
++        }
++        .padding(.vertical, 4)
++        .accessibilityElement(children: .combine)
++        .accessibilityLabel(
++            "\(labName), \(reasonText)"
++            + (activity.flaggedAt.map { ", noticed \(Fmt.relative($0))" } ?? "")
++        )
++        .accessibilityHint("Double tap to show this lab in the Labs list.")
++    }
++}
+diff --git a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+index afbd742..1477e51 100644
+--- a/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
++++ b/ReleaseModelRadar/Features/Labs/LabFavoritesStore.swift
+@@ -1,34 +1,71 @@
+ import Foundation
+ import SwiftUI
+ 
+-/* Lab favourites + in-app "new info" indicators (Phase 6).
++/* Lab favourites + in-app "new info" activity (Phases 6, 6B, 6B.1, 6C).
+ 
+    Local-only, UserDefaults-backed, keyed by the API's stable lab ids.
+-   Indicators are computed transparently: after a FRESH (not cached) load,
+-   the new data is compared against the previous snapshot, and a favourited
+-   lab is flagged when its public model count or its latest news headline
+-   changed. Purely in-app — no system notifications, no permissions, no
+-   server sync. All UserDefaults access for favourites lives here. */
++   Activity is computed transparently: after a FRESH (not cached) load, the
++   new data is compared against the previous snapshot, and a favourited lab
++   is flagged with a small activity record saying WHY (model count changed /
++   latest news headline changed) and WHEN this device noticed. Nothing is
++   invented beyond those two locally-observed signals.
++
++   Purely in-app — no system notifications, no permissions, no server sync.
++   All UserDefaults access for favourites lives here. */
++
++/// One favourited lab's pending "new info" record.
++struct LabActivity: Codable, Equatable, Identifiable {
++    enum Reason: String, Codable, CaseIterable {
++        case modelCountChanged
++        case newsHeadlineChanged
++        /// Legacy/fallback when the specific signal wasn't recorded
++        /// (e.g. flags migrated from the pre-6C format).
++        case updated
++    }
++
++    let labID: String
++    var reasons: Set<Reason>
++    /// When THIS DEVICE first noticed the change — nil for migrated legacy
++    /// flags, where claiming a time would be invented precision.
++    var flaggedAt: Date?
++
++    var id: String { labID }
++}
+ 
+ @MainActor
+ final class LabFavoritesStore: ObservableObject {
+ 
+     private enum Key {
+         static let favorites = "labs.favorites"
+-        static let newInfo = "labs.newInfo"
++        static let newInfo = "labs.newInfo" // legacy id list, kept in sync
++        static let activity = "labs.activity"
+         static let modelCounts = "labs.snapshot.modelCounts"
+         static let latestNews = "labs.snapshot.latestNews"
+     }
+ 
+     @Published private(set) var favoriteIDs: Set<String>
+-    @Published private(set) var newInfoLabIDs: Set<String>
++    @Published private(set) var activity: [String: LabActivity]
++
++    /// Ids with pending activity — same meaning as before 6C; derived so the
++    /// activity records are the single source of truth.
++    var newInfoLabIDs: Set<String> { Set(activity.keys) }
+ 
+     private let defaults: UserDefaults
+ 
+     init(defaults: UserDefaults = .standard) {
+         self.defaults = defaults
+         favoriteIDs = Set(defaults.stringArray(forKey: Key.favorites) ?? [])
+-        newInfoLabIDs = Set(defaults.stringArray(forKey: Key.newInfo) ?? [])
++
++        if let raw = defaults.data(forKey: Key.activity),
++           let decoded = try? JSONDecoder().decode([LabActivity].self, from: raw) {
++            activity = Dictionary(uniqueKeysWithValues: decoded.map { ($0.labID, $0) })
++        } else {
++            // Migrate pre-6C flags: ids only, no recorded reason or time.
++            let legacy = defaults.stringArray(forKey: Key.newInfo) ?? []
++            activity = Dictionary(uniqueKeysWithValues: legacy.map {
++                ($0, LabActivity(labID: $0, reasons: [.updated], flaggedAt: nil))
++            })
++        }
+     }
+ 
+     // ── Favourites ────────────────────────────────────────────────────────────
+@@ -40,37 +77,32 @@ final class LabFavoritesStore: ObservableObject {
+     func toggle(_ id: String) {
+         if favoriteIDs.contains(id) {
+             favoriteIDs.remove(id)
+-            clearNewInfo(for: id) // unfavouriting also retires its indicator
++            clearNewInfo(for: id) // unfavouriting also retires its activity
+         } else {
+             favoriteIDs.insert(id)
+         }
+         defaults.set(Array(favoriteIDs).sorted(), forKey: Key.favorites)
+     }
+ 
+-    // ── New-info indicators (in-app only) ─────────────────────────────────────
++    // ── Activity recording (in-app only) ──────────────────────────────────────
+ 
+     /// Compare freshly loaded labs against the previous snapshot and flag
+     /// favourited labs whose public model count changed. Call only after a
+     /// fresh fetch — never for cached data.
+     ///
+-    /// Also prunes favourites whose lab id no longer exists upstream, so a
+-    /// renamed/removed lab can never wedge the favourites list or leave a
+-    /// permanent ghost indicator.
++    /// Prunes favourites whose lab id no longer exists upstream — but never
++    /// on an unexpectedly empty payload (Phase 6B.1 guard).
+     func recordLabsSnapshot(_ labs: [Lab]) {
+-        // Guard: one unexpectedly empty (but successful) labs payload must
+-        // not wipe favourites or snapshots — skip entirely and wait for the
+-        // next non-empty refresh. Pruning only ever runs against a payload
+-        // that contains at least one lab.
+         guard !labs.isEmpty else { return }
+ 
+         var snapshot = stringDictionary(Key.modelCounts)
+-        var flagged = newInfoLabIDs
++        var updated = activity
+         for lab in labs {
+             let fingerprint = String(lab.modelCount)
+             if favoriteIDs.contains(lab.id),
+                let previous = snapshot[lab.id],
+                previous != fingerprint {
+-                flagged.insert(lab.id)
++                updated[lab.id] = merged(updated[lab.id], labID: lab.id, adding: .modelCountChanged)
+             }
+             snapshot[lab.id] = fingerprint
+         }
+@@ -82,11 +114,11 @@ final class LabFavoritesStore: ObservableObject {
+             favoriteIDs.subtract(vanished)
+             defaults.set(Array(favoriteIDs).sorted(), forKey: Key.favorites)
+         }
+-        flagged.formIntersection(liveIDs)
++        updated = updated.filter { liveIDs.contains($0.key) }
+         snapshot = snapshot.filter { liveIDs.contains($0.key) }
+ 
+         defaults.set(snapshot, forKey: Key.modelCounts)
+-        updateNewInfo(flagged)
++        setActivity(updated)
+     }
+ 
+     /// Compare freshly loaded news against the previous snapshot and flag
+@@ -94,32 +126,55 @@ final class LabFavoritesStore: ObservableObject {
+     /// signal — item ids are positional and can repeat across refreshes.)
+     func recordNewsSnapshot(_ items: [NewsItem]) {
+         var snapshot = stringDictionary(Key.latestNews)
+-        var flagged = newInfoLabIDs
++        var updated = activity
+         var seenLabs: Set<String> = []
+         for item in items where !seenLabs.contains(item.lab) {
+             seenLabs.insert(item.lab) // items arrive newest first
+             if favoriteIDs.contains(item.lab),
+                let previous = snapshot[item.lab],
+                previous != item.title {
+-                flagged.insert(item.lab)
++                updated[item.lab] = merged(updated[item.lab], labID: item.lab, adding: .newsHeadlineChanged)
+             }
+             snapshot[item.lab] = item.title
+         }
+         defaults.set(snapshot, forKey: Key.latestNews)
+-        updateNewInfo(flagged)
++        setActivity(updated)
+     }
+ 
+-    /// Tapping a flagged lab row acknowledges its indicator.
++    // ── Acknowledging activity ────────────────────────────────────────────────
++
++    /// Acknowledge one lab's activity (row tap / per-row clear).
+     func clearNewInfo(for id: String) {
+-        guard newInfoLabIDs.contains(id) else { return }
+-        newInfoLabIDs.remove(id)
+-        defaults.set(Array(newInfoLabIDs).sorted(), forKey: Key.newInfo)
++        guard activity[id] != nil else { return }
++        var updated = activity
++        updated.removeValue(forKey: id)
++        setActivity(updated)
++    }
++
++    /// Acknowledge everything ("Mark all seen").
++    func markAllSeen() {
++        guard !activity.isEmpty else { return }
++        setActivity([:])
+     }
+ 
+-    private func updateNewInfo(_ flagged: Set<String>) {
+-        guard flagged != newInfoLabIDs else { return }
+-        newInfoLabIDs = flagged
+-        defaults.set(Array(flagged).sorted(), forKey: Key.newInfo)
++    // ── Internals ─────────────────────────────────────────────────────────────
++
++    private func merged(_ existing: LabActivity?, labID: String, adding reason: LabActivity.Reason) -> LabActivity {
++        var record = existing ?? LabActivity(labID: labID, reasons: [], flaggedAt: Date())
++        record.reasons.insert(reason)
++        record.reasons.remove(.updated) // a specific signal supersedes the fallback
++        if record.flaggedAt == nil { record.flaggedAt = Date() }
++        return record
++    }
++
++    private func setActivity(_ updated: [String: LabActivity]) {
++        guard updated != activity else { return }
++        activity = updated
++        if let encoded = try? JSONEncoder().encode(Array(updated.values)) {
++            defaults.set(encoded, forKey: Key.activity)
++        }
++        // Keep the legacy id list in sync for anything still reading it.
++        defaults.set(Array(updated.keys).sorted(), forKey: Key.newInfo)
+     }
+ 
+     private func stringDictionary(_ key: String) -> [String: String] {
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index b34df24..630a510 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -11,6 +11,13 @@ struct LabsView: View {
+     @State private var cachedAt: Date?
+     @State private var isCached = false
+     @State private var showFavoritesOnly = false
++    @State private var showActivity = false
++    @State private var highlightedLabID: String?
++
++    private var loadedLabs: [Lab] {
++        if case .loaded(let payload) = state { return payload.labs }
++        return []
++    }
+ 
+     var body: some View {
+         NavigationStack {
+@@ -18,6 +25,26 @@ struct LabsView: View {
+                 .navigationTitle("Labs")
+                 .background(Theme.bg)
+                 .toolbar {
++                    ToolbarItem(placement: .topBarLeading) {
++                        Button {
++                            showActivity = true
++                        } label: {
++                            Image(systemName: "sparkles")
++                                .foregroundStyle(favorites.newInfoLabIDs.isEmpty ? Theme.dim : Theme.good)
++                                .overlay(alignment: .topTrailing) {
++                                    if !favorites.newInfoLabIDs.isEmpty {
++                                        Circle().fill(Theme.good).frame(width: 7, height: 7)
++                                            .offset(x: 4, y: -3)
++                                    }
++                                }
++                        }
++                        .accessibilityLabel("Lab activity")
++                        .accessibilityValue(
++                            favorites.newInfoLabIDs.isEmpty
++                                ? "no new activity"
++                                : "\(favorites.newInfoLabIDs.count) labs with new info"
++                        )
++                    }
+                     ToolbarItem(placement: .topBarTrailing) {
+                         Button {
+                             showFavoritesOnly.toggle()
+@@ -28,6 +55,26 @@ struct LabsView: View {
+                         .accessibilityLabel(showFavoritesOnly ? "Show all labs" : "Show favourite labs only")
+                     }
+                 }
++                .sheet(isPresented: $showActivity) {
++                    LabActivityView(
++                        labs: loadedLabs,
++                        isCached: isCached,
++                        cachedAt: cachedAt
++                    ) { labID in
++                        // Surface the lab in the list: lift any filter hiding
++                        // it, then highlight its row briefly.
++                        if showFavoritesOnly && !favorites.isFavorite(labID) {
++                            showFavoritesOnly = false
++                        }
++                        highlightedLabID = labID
++                    }
++                    .environmentObject(favorites)
++                }
++                .task(id: highlightedLabID) {
++                    guard highlightedLabID != nil else { return }
++                    try? await Task.sleep(nanoseconds: 2_500_000_000)
++                    highlightedLabID = nil
++                }
+         }
+         .task { await load() }
+     }
+@@ -74,7 +121,11 @@ struct LabsView: View {
+                         )
+                         .contentShape(Rectangle())
+                         .onTapGesture { favorites.clearNewInfo(for: lab.id) }
+-                        .listRowBackground(Theme.panel)
++                        .listRowBackground(
++                            highlightedLabID == lab.id
++                                ? Theme.good.opacity(0.14)
++                                : Theme.panel
++                        )
+                         .listRowSeparatorTint(Theme.line)
+                     }
+                 }
+diff --git a/ReleaseModelRadarTests/LabActivityTests.swift b/ReleaseModelRadarTests/LabActivityTests.swift
+new file mode 100644
+index 0000000..2f1d4d0
+--- /dev/null
++++ b/ReleaseModelRadarTests/LabActivityTests.swift
+@@ -0,0 +1,130 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++@MainActor
++final class LabActivityTests: XCTestCase {
++
++    private var suiteName = ""
++    private var defaults: UserDefaults!
++
++    override func setUp() {
++        super.setUp()
++        suiteName = "test.activity.\(UUID().uuidString)"
++        defaults = UserDefaults(suiteName: suiteName)
++    }
++
++    override func tearDown() {
++        defaults.removePersistentDomain(forName: suiteName)
++        super.tearDown()
++    }
++
++    private func lab(_ id: String, count: Int) -> Lab {
++        Lab(id: id, name: id.capitalized, color: "#5EEAD4", modelCount: count)
++    }
++
++    private func newsItem(lab: String, title: String) -> NewsItem {
++        NewsItem(
++            id: "\(lab)-0", lab: lab, labName: lab.capitalized, title: title,
++            url: "https://example.com", source: "Official", sourceType: "official",
++            publishedAt: nil, snippet: nil
++        )
++    }
++
++    func test_activityExistsWhenFavouriteHasNewInfoFlag() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        store.recordLabsSnapshot([lab("anthropic", count: 6)])
++
++        let record = store.activity["anthropic"]
++        XCTAssertNotNil(record)
++        XCTAssertEqual(record?.reasons, [.modelCountChanged])
++        XCTAssertNotNil(record?.flaggedAt, "freshly detected activity records when it was noticed")
++        XCTAssertEqual(store.newInfoLabIDs, ["anthropic"], "legacy id set stays in sync")
++    }
++
++    func test_reasonsMergeWhenBothSignalsFire() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("openai")
++        store.recordLabsSnapshot([lab("openai", count: 3)])
++        store.recordNewsSnapshot([newsItem(lab: "openai", title: "first")])
++
++        store.recordLabsSnapshot([lab("openai", count: 4)])
++        store.recordNewsSnapshot([newsItem(lab: "openai", title: "second")])
++
++        XCTAssertEqual(store.activity["openai"]?.reasons, [.modelCountChanged, .newsHeadlineChanged])
++        XCTAssertEqual(store.activity.count, 1, "one entry per lab, reasons merged")
++    }
++
++    func test_markAllSeenClearsEverythingAndPersists() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.toggle("openai")
++        store.recordLabsSnapshot([lab("anthropic", count: 5), lab("openai", count: 3)])
++        store.recordLabsSnapshot([lab("anthropic", count: 6), lab("openai", count: 4)])
++        XCTAssertEqual(store.activity.count, 2)
++
++        store.markAllSeen()
++        XCTAssertTrue(store.activity.isEmpty)
++        XCTAssertTrue(store.newInfoLabIDs.isEmpty)
++
++        let reloaded = LabFavoritesStore(defaults: defaults)
++        XCTAssertTrue(reloaded.activity.isEmpty, "mark-all-seen persists across recreation")
++    }
++
++    func test_perLabAcknowledgeClearsOnlyThatLab() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.toggle("openai")
++        store.recordLabsSnapshot([lab("anthropic", count: 5), lab("openai", count: 3)])
++        store.recordLabsSnapshot([lab("anthropic", count: 6), lab("openai", count: 4)])
++
++        store.clearNewInfo(for: "anthropic")
++        XCTAssertNil(store.activity["anthropic"])
++        XCTAssertEqual(store.activity["openai"]?.reasons, [.modelCountChanged])
++    }
++
++    func test_noActivityWithoutFavourites() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        store.recordLabsSnapshot([lab("anthropic", count: 9)])
++        store.recordNewsSnapshot([newsItem(lab: "anthropic", title: "a")])
++        store.recordNewsSnapshot([newsItem(lab: "anthropic", title: "b")])
++        XCTAssertTrue(store.activity.isEmpty, "non-favourited labs never produce activity")
++    }
++
++    func test_noActivityWhenFavouritesHaveNoChanges() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        XCTAssertTrue(store.activity.isEmpty, "unchanged data produces no activity")
++    }
++
++    /// Phase 6B.1 guard extends to activity: one empty successful payload
++    /// must not wipe favourites, snapshots, or pending activity.
++    func test_emptyLabsPayloadPreservesActivityAndFavourites() {
++        let store = LabFavoritesStore(defaults: defaults)
++        store.toggle("anthropic")
++        store.recordLabsSnapshot([lab("anthropic", count: 5)])
++        store.recordLabsSnapshot([lab("anthropic", count: 6)])
++        XCTAssertEqual(store.activity.count, 1)
++
++        store.recordLabsSnapshot([])
++        XCTAssertTrue(store.isFavorite("anthropic"))
++        XCTAssertEqual(store.activity.count, 1, "empty payload must not clear pending activity")
++    }
++
++    /// Pre-6C installs stored bare ids — they must surface as activity with
++    /// the honest fallback reason and no invented timestamp.
++    func test_legacyNewInfoIDsMigrateToActivity() {
++        defaults.set(["anthropic"], forKey: "labs.newInfo")
++        defaults.set(["anthropic"], forKey: "labs.favorites")
++
++        let store = LabFavoritesStore(defaults: defaults)
++        let record = store.activity["anthropic"]
++        XCTAssertEqual(record?.reasons, [.updated])
++        XCTAssertNil(record?.flaggedAt, "migrated flags must not invent a timestamp")
++        XCTAssertEqual(store.newInfoLabIDs, ["anthropic"])
++    }
++}
+-- 
+2.43.0
+
