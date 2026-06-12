@@ -1,0 +1,521 @@
+From ddded7877e1de88735f58d93a9089e19eabfcc89 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 15:13:12 +0000
+Subject: [PATCH] Add adaptive iPad split navigation and readable widths
+
+---
+ .../Components/AdaptiveLayout.swift           |  64 +++++++++
+ .../Definitions/DefinitionDetailView.swift    |  67 ++++++++++
+ .../Definitions/DefinitionsView.swift         | 126 ++++++++++++++----
+ .../Features/Labs/LabsView.swift              |   1 +
+ .../Features/Models/ModelDetailView.swift     |   1 +
+ .../Features/Models/ModelsView.swift          |  87 ++++++++++--
+ .../Features/News/NewsView.swift              |   1 +
+ .../Features/Settings/SettingsView.swift      |   1 +
+ .../TuneRadar/TuneRadarOnboardingView.swift   |   1 +
+ 9 files changed, 314 insertions(+), 35 deletions(-)
+ create mode 100644 ReleaseModelRadar/Components/AdaptiveLayout.swift
+ create mode 100644 ReleaseModelRadar/Features/Definitions/DefinitionDetailView.swift
+
+diff --git a/ReleaseModelRadar/Components/AdaptiveLayout.swift b/ReleaseModelRadar/Components/AdaptiveLayout.swift
+new file mode 100644
+index 0000000..9be4ef8
+--- /dev/null
++++ b/ReleaseModelRadar/Components/AdaptiveLayout.swift
+@@ -0,0 +1,64 @@
++import SwiftUI
++import UIKit
++
++/* Phase 7 — iPad / large-screen layout helpers.
++
++   The app keeps its TabView on every device; tabs adapt internally.
++   Split layouts and width caps apply only on iPad, so iPhone screens run
++   exactly the same code paths as before this phase. iPad multitasking
++   (Slide Over / narrow Split View) reports a compact width and falls back
++   to the familiar stacked layout automatically. */
++
++enum AdaptiveLayout {
++    /// True only on iPad. iPhones — including Pro Max landscape, which
++    /// also reports a regular width — keep their existing layouts.
++    static var isPad: Bool {
++        UIDevice.current.userInterfaceIdiom == .pad
++    }
++
++    /// Comfortable width cap for single-column lists on wide screens.
++    static let readableWidth: CGFloat = 700
++    /// Width cap for prose-heavy detail content.
++    static let detailWidth: CGFloat = 640
++}
++
++extension View {
++    /// Caps content width and centers it on iPad so single-column screens
++    /// don't stretch edge to edge. Leaves iPhone rendering untouched.
++    @ViewBuilder
++    func padReadableWidth(_ maxWidth: CGFloat = AdaptiveLayout.readableWidth) -> some View {
++        if AdaptiveLayout.isPad {
++            self
++                .frame(maxWidth: maxWidth)
++                .frame(maxWidth: .infinity)
++                .background(Theme.bg)
++        } else {
++            self
++        }
++    }
++}
++
++/// Shared placeholder for an empty split-view detail column.
++struct DetailPlaceholderView: View {
++    let icon: String
++    let title: String
++    let message: String
++
++    var body: some View {
++        VStack(spacing: 12) {
++            Image(systemName: icon)
++                .font(.largeTitle)
++                .foregroundStyle(Theme.dim)
++            Text(title)
++                .font(.headline)
++                .foregroundStyle(Theme.ink)
++            Text(message)
++                .font(.subheadline)
++                .foregroundStyle(Theme.muted)
++                .multilineTextAlignment(.center)
++                .frame(maxWidth: 320)
++        }
++        .frame(maxWidth: .infinity, maxHeight: .infinity)
++        .background(Theme.bg)
++    }
++}
+diff --git a/ReleaseModelRadar/Features/Definitions/DefinitionDetailView.swift b/ReleaseModelRadar/Features/Definitions/DefinitionDetailView.swift
+new file mode 100644
+index 0000000..97df3bc
+--- /dev/null
++++ b/ReleaseModelRadar/Features/Definitions/DefinitionDetailView.swift
+@@ -0,0 +1,67 @@
++import SwiftUI
++
++/// Full read-out for one glossary term — the iPad split-view detail column.
++/// iPhone keeps its expand-in-place rows; both render the same sections.
++struct DefinitionDetailView: View {
++    let definition: Definition
++
++    var body: some View {
++        ScrollView {
++            VStack(alignment: .leading, spacing: 16) {
++                VStack(alignment: .leading, spacing: 8) {
++                    HStack(spacing: 10) {
++                        Text(definition.term)
++                            .font(.title2.weight(.bold))
++                            .foregroundStyle(Theme.ink)
++                        Pill(text: definition.category, color: Theme.dim)
++                    }
++                    Text(definition.shortDefinition)
++                        .font(.system(size: 14))
++                        .foregroundStyle(Theme.muted)
++                }
++
++                Divider().overlay(Theme.line)
++
++                DefinitionDetailSections(definition: definition)
++            }
++            .padding(20)
++            .frame(maxWidth: .infinity, alignment: .leading)
++            .padReadableWidth(AdaptiveLayout.detailWidth)
++        }
++        .background(Theme.bg)
++        .navigationTitle(definition.term)
++        .navigationBarTitleDisplayMode(.inline)
++    }
++}
++
++/// The expanded body of a definition: plain English, why it matters,
++/// example, and related terms. Shared by the iPhone expandable row and
++/// the iPad detail column so the two never drift.
++struct DefinitionDetailSections: View {
++    let definition: Definition
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 12) {
++            block("PLAIN ENGLISH", definition.plainEnglish, accent: Theme.good)
++            block("WHY IT MATTERS", definition.whyItMatters, accent: Theme.warn)
++            block("EXAMPLE", definition.example, accent: Theme.dim)
++            if let related = definition.relatedTerms, !related.isEmpty {
++                Text("Related: \(related.joined(separator: " · "))")
++                    .font(.system(size: 11, design: .monospaced))
++                    .foregroundStyle(Theme.dim)
++            }
++        }
++    }
++
++    private func block(_ title: String, _ text: String, accent: Color) -> some View {
++        VStack(alignment: .leading, spacing: 4) {
++            Text(title)
++                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
++                .tracking(1.2)
++                .foregroundStyle(accent)
++            Text(text)
++                .font(.system(size: 13))
++                .foregroundStyle(Theme.ink)
++        }
++    }
++}
+diff --git a/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift b/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
+index 1460eb3..34e30d0 100644
+--- a/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
++++ b/ReleaseModelRadar/Features/Definitions/DefinitionsView.swift
+@@ -1,20 +1,117 @@
+ import SwiftUI
+ 
+-/// Definitions tab: searchable plain-English glossary, tap to expand.
++/// Definitions tab: searchable plain-English glossary.
++/// iPhone: tap a row to expand it in place (unchanged). iPad (regular
++/// width): a two-column NavigationSplitView — term list left, full
++/// definition right.
+ struct DefinitionsView: View {
++    @Environment(\.horizontalSizeClass) private var hSizeClass
+     @State private var state: Loadable<DefinitionsPayload> = .loading
+     @State private var query = ""
+     @State private var expanded: Set<String> = []
++    @State private var selectedID: String? // split-layout selection
+     @State private var cachedAt: Date?
+     @State private var isCached = false
+ 
++    private var usesSplitLayout: Bool {
++        AdaptiveLayout.isPad && hSizeClass == .regular
++    }
++
+     var body: some View {
++        Group {
++            if usesSplitLayout {
++                splitLayout
++            } else {
++                stackLayout
++            }
++        }
++        .task { await load() }
++    }
++
++    /// The original iPhone flow — unchanged.
++    private var stackLayout: some View {
+         NavigationStack {
+             content
+                 .navigationTitle("AI Definitions")
+                 .background(Theme.bg)
+         }
+-        .task { await load() }
++    }
++
++    private var splitLayout: some View {
++        NavigationSplitView {
++            listColumn
++                .navigationTitle("AI Definitions")
++                .background(Theme.bg)
++                .navigationSplitViewColumnWidth(min: 340, ideal: 400, max: 460)
++        } detail: {
++            if let definition = selectedDefinition {
++                DefinitionDetailView(definition: definition)
++            } else {
++                DetailPlaceholderView(
++                    icon: "book",
++                    title: "Select a term",
++                    message: "Pick a term from the list — or search — to read the plain-English definition."
++                )
++            }
++        }
++        .navigationSplitViewStyle(.balanced)
++    }
++
++    private var selectedDefinition: Definition? {
++        guard case .loaded(let payload) = state, let selectedID else { return nil }
++        return payload.definitions.first { $0.id == selectedID }
++    }
++
++    /// Split-layout list column: compact rows that select instead of expand.
++    @ViewBuilder
++    private var listColumn: some View {
++        switch state {
++        case .loading:
++            LoadingView()
++        case .failed(let message):
++            ErrorView(message: message) { Task { await load(force: true) } }
++        case .loaded(let payload):
++            List {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                }
++                ForEach(filtered(payload.definitions)) { definition in
++                    Button {
++                        selectedID = definition.id
++                    } label: {
++                        VStack(alignment: .leading, spacing: 6) {
++                            HStack(spacing: 8) {
++                                Text(definition.term)
++                                    .font(.system(size: 15, weight: .semibold))
++                                    .foregroundStyle(Theme.ink)
++                                Spacer(minLength: 4)
++                                Pill(text: definition.category, color: Theme.dim)
++                            }
++                            Text(definition.shortDefinition)
++                                .font(.system(size: 13))
++                                .foregroundStyle(Theme.muted)
++                                .lineLimit(2)
++                        }
++                        .padding(.vertical, 4)
++                    }
++                    .buttonStyle(.plain)
++                    .listRowBackground(selectedID == definition.id ? Theme.raised : Theme.panel)
++                    .listRowSeparatorTint(Theme.line)
++                }
++            }
++            .radarListStyle()
++            .searchable(text: $query, prompt: "Search terms (context, tokens, MCP…)")
++            .refreshable { await load(force: true) }
++            .overlay {
++                if filtered(payload.definitions).isEmpty {
++                    Text("No terms match.")
++                        .font(.subheadline)
++                        .foregroundStyle(Theme.dim)
++                }
++            }
++        }
+     }
+ 
+     @ViewBuilder
+@@ -114,31 +211,10 @@ struct DefinitionRow: View {
+             .buttonStyle(.plain)
+ 
+             if isExpanded {
+-                VStack(alignment: .leading, spacing: 12) {
+-                    detailBlock("PLAIN ENGLISH", definition.plainEnglish, accent: Theme.good)
+-                    detailBlock("WHY IT MATTERS", definition.whyItMatters, accent: Theme.warn)
+-                    detailBlock("EXAMPLE", definition.example, accent: Theme.dim)
+-                    if let related = definition.relatedTerms, !related.isEmpty {
+-                        Text("Related: \(related.joined(separator: " · "))")
+-                            .font(.system(size: 11, design: .monospaced))
+-                            .foregroundStyle(Theme.dim)
+-                    }
+-                }
+-                .padding(.top, 2)
++                DefinitionDetailSections(definition: definition)
++                    .padding(.top, 2)
+             }
+         }
+         .padding(.vertical, 4)
+     }
+-
+-    private func detailBlock(_ title: String, _ text: String, accent: Color) -> some View {
+-        VStack(alignment: .leading, spacing: 4) {
+-            Text(title)
+-                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+-                .tracking(1.2)
+-                .foregroundStyle(accent)
+-            Text(text)
+-                .font(.system(size: 13))
+-                .foregroundStyle(Theme.ink)
+-        }
+-    }
+ }
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 1f7b1a1..15b80d3 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -22,6 +22,7 @@ struct LabsView: View {
+     var body: some View {
+         NavigationStack {
+             content
++                .padReadableWidth() // iPad: keep the list from stretching edge to edge
+                 .navigationTitle("Labs")
+                 .background(Theme.bg)
+                 .toolbar {
+diff --git a/ReleaseModelRadar/Features/Models/ModelDetailView.swift b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+index fb53f07..c4c1acc 100644
+--- a/ReleaseModelRadar/Features/Models/ModelDetailView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+@@ -37,6 +37,7 @@ struct ModelDetailView: View {
+                     .frame(maxWidth: .infinity, alignment: .leading)
+             }
+             .padding(16)
++            .padReadableWidth(AdaptiveLayout.detailWidth) // iPad: keep prose readable
+         }
+         .background(Theme.bg)
+         .navigationTitle(model.name)
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index 9df66de..c1d517d 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -1,17 +1,37 @@
+ import SwiftUI
+ 
+ /// Radar tab: the curated catalog grouped Just shipped / Live now / On the horizon.
++/// iPhone: the original NavigationStack push flow. iPad (regular width):
++/// a two-column NavigationSplitView — list left, model detail right.
+ struct ModelsView: View {
++    @Environment(\.horizontalSizeClass) private var hSizeClass
+     @State private var state: Loadable<ModelsPayload> = .loading
+     @State private var labColors: [String: String] = [:]
+     @State private var labNames: [String: String] = [:]
+     @State private var path: [RadarModel] = []
++    @State private var selectedModel: RadarModel? // split-layout selection
+     @State private var cachedAt: Date?
+     @State private var isCached = false
+ 
+     private let statusOrder = ["new", "live", "horizon"]
+ 
++    private var usesSplitLayout: Bool {
++        AdaptiveLayout.isPad && hSizeClass == .regular
++    }
++
+     var body: some View {
++        Group {
++            if usesSplitLayout {
++                splitLayout
++            } else {
++                stackLayout
++            }
++        }
++        .task { await load() }
++    }
++
++    /// The original iPhone flow — unchanged.
++    private var stackLayout: some View {
+         NavigationStack(path: $path) {
+             content
+                 .navigationTitle("Release Model Radar")
+@@ -20,8 +40,43 @@ struct ModelsView: View {
+                     ToolbarItem(placement: .topBarTrailing) { StatusBadgeView() }
+                 }
+                 .background(Theme.bg)
++                .navigationDestination(for: RadarModel.self) { model in
++                    ModelDetailView(model: model, labColor: labColor(for: model), labName: labName(for: model))
++                }
++        }
++    }
++
++    private var splitLayout: some View {
++        NavigationSplitView {
++            content
++                .navigationTitle("Release Model Radar")
++                .navigationBarTitleDisplayMode(.large)
++                .toolbar {
++                    ToolbarItem(placement: .topBarTrailing) { StatusBadgeView() }
++                }
++                .background(Theme.bg)
++                .navigationSplitViewColumnWidth(min: 360, ideal: 420, max: 480)
++        } detail: {
++            if let model = selectedModel {
++                ModelDetailView(model: model, labColor: labColor(for: model), labName: labName(for: model))
++            } else {
++                DetailPlaceholderView(
++                    icon: "dot.radiowaves.left.and.right",
++                    title: "Select a model",
++                    message: "Pick a model from the list to see its specs, guidance, and why it matters to you."
++                )
++            }
++        }
++        .navigationSplitViewStyle(.balanced)
++    }
++
++    /// Open a model: select in the split layout, push on iPhone.
++    private func open(_ model: RadarModel) {
++        if usesSplitLayout {
++            selectedModel = model
++        } else {
++            path.append(model)
+         }
+-        .task { await load() }
+     }
+ 
+     @ViewBuilder
+@@ -59,7 +114,7 @@ struct ModelsView: View {
+                 // Release timeline first, like the web app: header → timeline → cards
+                 Section {
+                     ReleaseTimelineView(models: payload.models, labColors: labColors) { model in
+-                        path.append(model)
++                        open(model)
+                     }
+                     .listRowBackground(Theme.panel)
+                     .listRowSeparator(.hidden)
+@@ -70,11 +125,13 @@ struct ModelsView: View {
+                     if !group.isEmpty {
+                         Section {
+                             ForEach(group) { model in
+-                                NavigationLink(value: model) {
+-                                    ModelRow(model: model, labColor: labColor(for: model), labName: labName(for: model))
+-                                }
+-                                .listRowBackground(Theme.panel)
+-                                .listRowSeparatorTint(Theme.line)
++                                modelRowLink(model)
++                                    .listRowBackground(
++                                        usesSplitLayout && selectedModel?.id == model.id
++                                            ? Theme.raised
++                                            : Theme.panel
++                                    )
++                                    .listRowSeparatorTint(Theme.line)
+                             }
+                         } header: {
+                             Text(sectionTitle(status))
+@@ -87,9 +144,19 @@ struct ModelsView: View {
+             }
+             .radarListStyle()
+             .refreshable { await load(force: true) }
+-            .navigationDestination(for: RadarModel.self) { model in
+-                ModelDetailView(model: model, labColor: labColor(for: model), labName: labName(for: model))
+-            }
++        }
++    }
++
++    /// Row presentation per layout: a push link on iPhone (chevron kept),
++    /// a selection button in the split layout.
++    @ViewBuilder
++    private func modelRowLink(_ model: RadarModel) -> some View {
++        let row = ModelRow(model: model, labColor: labColor(for: model), labName: labName(for: model))
++        if usesSplitLayout {
++            Button { open(model) } label: { row }
++                .buttonStyle(.plain)
++        } else {
++            NavigationLink(value: model) { row }
+         }
+     }
+ 
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index df0f455..c31005b 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -10,6 +10,7 @@ struct NewsView: View {
+     var body: some View {
+         NavigationStack {
+             content
++                .padReadableWidth() // iPad: readable column for headlines/snippets
+                 .navigationTitle("Lab News")
+                 .background(Theme.bg)
+         }
+diff --git a/ReleaseModelRadar/Features/Settings/SettingsView.swift b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+index a2f2429..f71e861 100644
+--- a/ReleaseModelRadar/Features/Settings/SettingsView.swift
++++ b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+@@ -50,6 +50,7 @@ struct SettingsView: View {
+                 .listRowBackground(Theme.panel)
+             }
+             .radarListStyle()
++            .padReadableWidth() // iPad: form stays a comfortable width
+             .navigationTitle("Settings")
+             .confirmationDialog(
+                 "Reset Tune Radar preferences?",
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+index bfad992..54f5455 100644
+--- a/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+@@ -62,6 +62,7 @@ struct TuneRadarOnboardingView: View {
+                     .padding(.top, 6)
+                 }
+                 .padding(20)
++                .padReadableWidth(560) // iPad: centered card width, not full-bleed
+             }
+             .background(Theme.bg)
+             .navigationTitle("Tune Radar")
+-- 
+2.43.0
+
