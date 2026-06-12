@@ -1,0 +1,87 @@
+From d5051fa0d25fd55a5b28eeccaea4db2b748d9c15 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 08:40:50 +0000
+Subject: [PATCH] Update docs for Phase 6C lock
+
+---
+ README.md            | 15 +++++++--------
+ docs/ios-mvp-plan.md | 17 ++++++++++++++++-
+ 2 files changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/README.md b/README.md
+index 8b3fc66..17db585 100644
+--- a/README.md
++++ b/README.md
+@@ -11,7 +11,7 @@ on the next fetch.
+ | Tab | What it does |
+ |---|---|
+ | **Radar** | Release timeline (lab-colored dots, today marker, tap-to-detail) and the model list grouped by release state — Just shipped / Live now / On the horizon — with at-a-glance usefulness pills. Tap a model for the full detail screen: specs, strengths, watch-outs, guidance, community signal, lab link. |
+-| **Labs** | Every tracked lab with its color and model count. Star a lab to favourite it (stored on device); a favourites filter and an in-app “New info” dot show when a favourited lab's public data changed since your last refresh. |
++| **Labs** | Every tracked lab with its color and model count. Star a lab to favourite it (stored on device); a favourites filter and an in-app “New info” dot show when a favourited lab's public data changed since your last refresh. A **Lab Activity** sheet lists what changed and why (tracked local signals only), with “Mark all seen”, per-lab acknowledge, and tap-to-jump that scrolls to and briefly highlights the lab's row. |
+ | **Definitions** | Searchable plain-English glossary of model-release language; tap a term to expand. |
+ | **News** | Recent lab announcements, newest first, with official vs news-search source tags. |
+ | **Settings** | Tune Radar preferences (view, edit, reset) and app info. |
+@@ -59,13 +59,12 @@ being shown (even when the cached list is empty).
+ - Phase 3 — iOS MVP baseline (`mvp-ios-phase-3-lock`)
+ - Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
+ - Phase 5 — Personalized recommendation layer (`phase-5-personalized-recommendation-lock`)
+-
+ - Phase 6 — Offline cache + lab favourites (`phase-6-offline-cache-lab-favourites-lock`)
+-
+-**In review**
+-
+-- Phase 6B — Cache/favourites/accessibility hardening + unit-test target —
+-  implemented on `ios-cache-favourites-hardening`, awaiting review.
++- Phase 6B — Cache/favourites/accessibility hardening + unit-test target
++  (`phase-6b-cache-favourites-hardening-lock`)
++- Phase 6B.1 — Test & cache hardening (`phase-6b1-test-cache-hardening-lock`)
++- Phase 6C — Favourite Lab Activity surface
++  (`phase-6c-favourite-lab-activity-lock`)
+ 
+ **Future**
+ 
+@@ -81,7 +80,7 @@ being shown (even when the cached list is empty).
+   Simulators need no signing; a device needs your team under
+   Signing & Capabilities.
+ - Run the unit tests with ⌘U (`ReleaseModelRadarTests` — cache policy,
+-  disk persistence, favourites and indicator behaviour).
++  disk persistence, favourites/indicator and lab-activity behaviour).
+ - **No server setup required** — the app talks to the public web/API
+   project, which is developed and deployed separately.
+ - Do not add secrets or API keys to this app; nothing it does needs them.
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index cc2e289..3711255 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -71,12 +71,27 @@ later phase genuinely needs it.
+   (`LabFavoritesStore`, UserDefaults-only, no system notifications, no
+   permission prompts, no backend sync)
+   (`phase-6-offline-cache-lab-favourites-lock`)
+-- Phase 6B — in review: hardening — `ReleaseModelRadarTests` unit-test
++- Phase 6B — ✅ locked: hardening — `ReleaseModelRadarTests` unit-test
+   target (cache policy, disk persistence, favourites/indicator behaviour),
+   SHA-256 collision-resistant cache filenames, automatic cleanup of
+   favourites whose lab id disappears upstream, cached-data note in the
+   update-status detail alert, and VoiceOver value/hint/selected traits on
+   the favourite star
++  (`phase-6b-cache-favourites-hardening-lock`)
++- Phase 6B.1 — ✅ locked: test & cache hardening — 17.0 test deployment
++  target, strengthened tests (HTTP-200 `ok:false` handling, disk cache
++  survives recreation, teardown removes only test-created cache dirs),
++  and the empty-payload guard so one empty successful response can't wipe
++  favourites or snapshots
++  (`phase-6b1-test-cache-hardening-lock`)
++- Phase 6C — ✅ locked: Favourite Lab Activity — in-app Lab Activity sheet
++  with a local activity model whose reasons come only from tracked local
++  signals (model count changed / latest news headline changed), "Mark all
++  seen" and per-lab acknowledge, tap-to-jump that lifts filters and
++  scrolls to + briefly highlights the lab row, empty states with
++  cached/offline context, migration of legacy new-info flags (honest
++  fallback reason, no invented timestamp), and unit tests passing
++  (`phase-6c-favourite-lab-activity-lock`)
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+-- 
+2.43.0
+
