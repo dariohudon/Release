@@ -1,0 +1,318 @@
+From 9b3605c6e019fb40109986bac7de75dafa7f2110 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 16:34:54 +0000
+Subject: [PATCH 22/22] Mirror RadarStatusWidget target in project file
+
+---
+ ReleaseModelRadar.xcodeproj/project.pbxproj | 171 ++++++++++++++++++++
+ 1 file changed, 171 insertions(+)
+
+diff --git a/ReleaseModelRadar.xcodeproj/project.pbxproj b/ReleaseModelRadar.xcodeproj/project.pbxproj
+index eb03720..9b1f53b 100644
+--- a/ReleaseModelRadar.xcodeproj/project.pbxproj
++++ b/ReleaseModelRadar.xcodeproj/project.pbxproj
+@@ -6,9 +6,14 @@
+ 	objectVersion = 77;
+ 	objects = {
+ 
++/* Begin PBXBuildFile section */
++		C300000000000000000000000D /* RadarStatusWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C3000000000000000000000002 /* RadarStatusWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
++/* End PBXBuildFile section */
++
+ /* Begin PBXFileReference section */
+ 		A10000000000000000000004 /* ReleaseModelRadar.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ReleaseModelRadar.app; sourceTree = BUILT_PRODUCTS_DIR; };
+ 		B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ReleaseModelRadarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
++		C3000000000000000000000002 /* RadarStatusWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = RadarStatusWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+ /* End PBXFileReference section */
+ 
+ /* Begin PBXContainerItemProxy section */
+@@ -19,11 +24,52 @@
+ 			remoteGlobalIDString = A10000000000000000000005;
+ 			remoteInfo = ReleaseModelRadar;
+ 		};
++		C300000000000000000000000A /* PBXContainerItemProxy */ = {
++			isa = PBXContainerItemProxy;
++			containerPortal = A10000000000000000000006 /* Project object */;
++			proxyType = 1;
++			remoteGlobalIDString = C3000000000000000000000003;
++			remoteInfo = RadarStatusWidget;
++		};
+ /* End PBXContainerItemProxy section */
+ 
++/* Begin PBXCopyFilesBuildPhase section */
++		C300000000000000000000000C /* Embed Foundation Extensions */ = {
++			isa = PBXCopyFilesBuildPhase;
++			buildActionMask = 2147483647;
++			dstPath = "";
++			dstSubfolderSpec = 13;
++			files = (
++				C300000000000000000000000D /* RadarStatusWidget.appex in Embed Foundation Extensions */,
++			);
++			name = "Embed Foundation Extensions";
++			runOnlyForDeploymentPostprocessing = 0;
++		};
++/* End PBXCopyFilesBuildPhase section */
++
++/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
++		C300000000000000000000000E /* Exceptions for "RadarStatusWidget" folder */ = {
++			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
++			membershipExceptions = (
++				Info.plist,
++			);
++			target = C3000000000000000000000003 /* RadarStatusWidget */;
++		};
++		C300000000000000000000000F /* Exceptions for "ReleaseModelRadar" folder */ = {
++			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
++			membershipExceptions = (
++				Widgets/RadarStatusSnapshot.swift,
++			);
++			target = C3000000000000000000000003 /* RadarStatusWidget */;
++		};
++/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
++
+ /* Begin PBXFileSystemSynchronizedRootGroup section */
+ 		A10000000000000000000002 /* ReleaseModelRadar */ = {
+ 			isa = PBXFileSystemSynchronizedRootGroup;
++			exceptions = (
++				C300000000000000000000000F /* Exceptions for "ReleaseModelRadar" folder */,
++			);
+ 			path = ReleaseModelRadar;
+ 			sourceTree = "<group>";
+ 		};
+@@ -32,6 +78,14 @@
+ 			path = ReleaseModelRadarTests;
+ 			sourceTree = "<group>";
+ 		};
++		C3000000000000000000000001 /* RadarStatusWidget */ = {
++			isa = PBXFileSystemSynchronizedRootGroup;
++			exceptions = (
++				C300000000000000000000000E /* Exceptions for "RadarStatusWidget" folder */,
++			);
++			path = RadarStatusWidget;
++			sourceTree = "<group>";
++		};
+ /* End PBXFileSystemSynchronizedRootGroup section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -49,6 +103,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		C3000000000000000000000005 /* Frameworks */ = {
++			isa = PBXFrameworksBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXFrameworksBuildPhase section */
+ 
+ /* Begin PBXGroup section */
+@@ -57,6 +118,7 @@
+ 			children = (
+ 				A10000000000000000000002 /* ReleaseModelRadar */,
+ 				B2000000000000000000000001 /* ReleaseModelRadarTests */,
++				C3000000000000000000000001 /* RadarStatusWidget */,
+ 				A10000000000000000000003 /* Products */,
+ 			);
+ 			sourceTree = "<group>";
+@@ -66,6 +128,7 @@
+ 			children = (
+ 				A10000000000000000000004 /* ReleaseModelRadar.app */,
+ 				B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */,
++				C3000000000000000000000002 /* RadarStatusWidget.appex */,
+ 			);
+ 			name = Products;
+ 			sourceTree = "<group>";
+@@ -80,10 +143,12 @@
+ 				A10000000000000000000007 /* Sources */,
+ 				A10000000000000000000008 /* Frameworks */,
+ 				A10000000000000000000009 /* Resources */,
++				C300000000000000000000000C /* Embed Foundation Extensions */,
+ 			);
+ 			buildRules = (
+ 			);
+ 			dependencies = (
++				C300000000000000000000000B /* PBXTargetDependency */,
+ 			);
+ 			fileSystemSynchronizedGroups = (
+ 				A10000000000000000000002 /* ReleaseModelRadar */,
+@@ -118,6 +183,28 @@
+ 			productReference = B2000000000000000000000002 /* ReleaseModelRadarTests.xctest */;
+ 			productType = "com.apple.product-type.bundle.unit-test";
+ 		};
++		C3000000000000000000000003 /* RadarStatusWidget */ = {
++			isa = PBXNativeTarget;
++			buildConfigurationList = C3000000000000000000000007 /* Build configuration list for PBXNativeTarget "RadarStatusWidget" */;
++			buildPhases = (
++				C3000000000000000000000004 /* Sources */,
++				C3000000000000000000000005 /* Frameworks */,
++				C3000000000000000000000006 /* Resources */,
++			);
++			buildRules = (
++			);
++			dependencies = (
++			);
++			fileSystemSynchronizedGroups = (
++				C3000000000000000000000001 /* RadarStatusWidget */,
++			);
++			name = RadarStatusWidget;
++			packageProductDependencies = (
++			);
++			productName = RadarStatusWidget;
++			productReference = C3000000000000000000000002 /* RadarStatusWidget.appex */;
++			productType = "com.apple.product-type.app-extension";
++		};
+ /* End PBXNativeTarget section */
+ 
+ /* Begin PBXTargetDependency section */
+@@ -126,6 +213,11 @@
+ 			target = A10000000000000000000005 /* ReleaseModelRadar */;
+ 			targetProxy = B2000000000000000000000008 /* PBXContainerItemProxy */;
+ 		};
++		C300000000000000000000000B /* PBXTargetDependency */ = {
++			isa = PBXTargetDependency;
++			target = C3000000000000000000000003 /* RadarStatusWidget */;
++			targetProxy = C300000000000000000000000A /* PBXContainerItemProxy */;
++		};
+ /* End PBXTargetDependency section */
+ 
+ /* Begin PBXProject section */
+@@ -143,6 +235,9 @@
+ 						CreatedOnToolsVersion = 16.0;
+ 						TestTargetID = A10000000000000000000005;
+ 					};
++					C3000000000000000000000003 = {
++						CreatedOnToolsVersion = 16.0;
++					};
+ 				};
+ 			};
+ 			buildConfigurationList = A1000000000000000000000B /* Build configuration list for PBXProject "ReleaseModelRadar" */;
+@@ -162,6 +257,7 @@
+ 			targets = (
+ 				A10000000000000000000005 /* ReleaseModelRadar */,
+ 				B2000000000000000000000003 /* ReleaseModelRadarTests */,
++				C3000000000000000000000003 /* RadarStatusWidget */,
+ 			);
+ 		};
+ /* End PBXProject section */
+@@ -181,6 +277,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		C3000000000000000000000006 /* Resources */ = {
++			isa = PBXResourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXResourcesBuildPhase section */
+ 
+ /* Begin PBXSourcesBuildPhase section */
+@@ -198,6 +301,13 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
++		C3000000000000000000000004 /* Sources */ = {
++			isa = PBXSourcesBuildPhase;
++			buildActionMask = 2147483647;
++			files = (
++			);
++			runOnlyForDeploymentPostprocessing = 0;
++		};
+ /* End PBXSourcesBuildPhase section */
+ 
+ /* Begin XCBuildConfiguration section */
+@@ -205,6 +315,7 @@
+ 			isa = XCBuildConfiguration;
+ 			buildSettings = {
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
++				CODE_SIGN_ENTITLEMENTS = ReleaseModelRadar/ReleaseModelRadar.entitlements;
+ 				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 1;
+ 				ENABLE_PREVIEWS = YES;
+@@ -232,6 +343,7 @@
+ 			isa = XCBuildConfiguration;
+ 			buildSettings = {
+ 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
++				CODE_SIGN_ENTITLEMENTS = ReleaseModelRadar/ReleaseModelRadar.entitlements;
+ 				CODE_SIGN_STYLE = Automatic;
+ 				CURRENT_PROJECT_VERSION = 1;
+ 				ENABLE_PREVIEWS = YES;
+@@ -410,6 +522,56 @@
+ 			};
+ 			name = Release;
+ 		};
++		C3000000000000000000000008 /* Debug */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				CODE_SIGN_ENTITLEMENTS = RadarStatusWidget/RadarStatusWidget.entitlements;
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				INFOPLIST_FILE = RadarStatusWidget/Info.plist;
++				INFOPLIST_KEY_CFBundleDisplayName = "Radar Status";
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LD_RUNPATH_SEARCH_PATHS = (
++					"$(inherited)",
++					"@executable_path/Frameworks",
++					"@executable_path/../../Frameworks",
++				);
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadar.RadarStatusWidget;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SKIP_INSTALL = YES;
++				SWIFT_EMIT_LOC_STRINGS = YES;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++			};
++			name = Debug;
++		};
++		C3000000000000000000000009 /* Release */ = {
++			isa = XCBuildConfiguration;
++			buildSettings = {
++				CODE_SIGN_ENTITLEMENTS = RadarStatusWidget/RadarStatusWidget.entitlements;
++				CODE_SIGN_STYLE = Automatic;
++				CURRENT_PROJECT_VERSION = 1;
++				GENERATE_INFOPLIST_FILE = YES;
++				INFOPLIST_FILE = RadarStatusWidget/Info.plist;
++				INFOPLIST_KEY_CFBundleDisplayName = "Radar Status";
++				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
++				LD_RUNPATH_SEARCH_PATHS = (
++					"$(inherited)",
++					"@executable_path/Frameworks",
++					"@executable_path/../../Frameworks",
++				);
++				MARKETING_VERSION = 1.0;
++				PRODUCT_BUNDLE_IDENTIFIER = com.octopusandson.ReleaseModelRadar.RadarStatusWidget;
++				PRODUCT_NAME = "$(TARGET_NAME)";
++				SKIP_INSTALL = YES;
++				SWIFT_EMIT_LOC_STRINGS = YES;
++				SWIFT_VERSION = 5.0;
++				TARGETED_DEVICE_FAMILY = "1,2";
++			};
++			name = Release;
++		};
+ /* End XCBuildConfiguration section */
+ 
+ /* Begin XCConfigurationList section */
+@@ -440,6 +602,15 @@
+ 			defaultConfigurationIsVisible = 0;
+ 			defaultConfigurationName = Release;
+ 		};
++		C3000000000000000000000007 /* Build configuration list for PBXNativeTarget "RadarStatusWidget" */ = {
++			isa = XCConfigurationList;
++			buildConfigurations = (
++				C3000000000000000000000008 /* Debug */,
++				C3000000000000000000000009 /* Release */,
++			);
++			defaultConfigurationIsVisible = 0;
++			defaultConfigurationName = Release;
++		};
+ /* End XCConfigurationList section */
+ 	};
+ 	rootObject = A10000000000000000000006 /* Project object */;
+-- 
+2.43.0
+

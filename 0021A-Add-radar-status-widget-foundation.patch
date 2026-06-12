@@ -1,0 +1,466 @@
+From de168b5495950049ea1b05d4636526b3c8fd2cff Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 16:32:52 +0000
+Subject: [PATCH 21/22] Add radar status widget foundation
+
+---
+ RadarStatusWidget/Info.plist                  |  11 ++
+ .../RadarStatusWidget.entitlements            |  10 ++
+ RadarStatusWidget/RadarStatusWidget.swift     | 106 ++++++++++++++++
+ .../Components/StatusBadge.swift              |  27 +++-
+ .../Features/Settings/SettingsView.swift      |   7 +-
+ .../ReleaseModelRadar.entitlements            |  10 ++
+ .../Widgets/RadarStatusSnapshot.swift         |  73 +++++++++++
+ .../RadarStatusSnapshotTests.swift            | 115 ++++++++++++++++++
+ 8 files changed, 357 insertions(+), 2 deletions(-)
+ create mode 100644 RadarStatusWidget/Info.plist
+ create mode 100644 RadarStatusWidget/RadarStatusWidget.entitlements
+ create mode 100644 RadarStatusWidget/RadarStatusWidget.swift
+ create mode 100644 ReleaseModelRadar/ReleaseModelRadar.entitlements
+ create mode 100644 ReleaseModelRadar/Widgets/RadarStatusSnapshot.swift
+ create mode 100644 ReleaseModelRadarTests/RadarStatusSnapshotTests.swift
+
+diff --git a/RadarStatusWidget/Info.plist b/RadarStatusWidget/Info.plist
+new file mode 100644
+index 0000000..0f118fb
+--- /dev/null
++++ b/RadarStatusWidget/Info.plist
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>NSExtension</key>
++	<dict>
++		<key>NSExtensionPointIdentifier</key>
++		<string>com.apple.widgetkit-extension</string>
++	</dict>
++</dict>
++</plist>
+diff --git a/RadarStatusWidget/RadarStatusWidget.entitlements b/RadarStatusWidget/RadarStatusWidget.entitlements
+new file mode 100644
+index 0000000..f781e02
+--- /dev/null
++++ b/RadarStatusWidget/RadarStatusWidget.entitlements
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>com.apple.security.application-groups</key>
++	<array>
++		<string>group.com.octopusandson.ReleaseModelRadar</string>
++	</array>
++</dict>
++</plist>
+diff --git a/RadarStatusWidget/RadarStatusWidget.swift b/RadarStatusWidget/RadarStatusWidget.swift
+new file mode 100644
+index 0000000..eea8d17
+--- /dev/null
++++ b/RadarStatusWidget/RadarStatusWidget.swift
+@@ -0,0 +1,106 @@
++import WidgetKit
++import SwiftUI
++
++/* Phase 8B — RadarStatusWidget: a small, read-only status widget.
++
++   Reads ONLY the snapshot the app saved to the App Group — no networking,
++   no background refresh, no interactivity, no deep links. Before the app
++   has ever saved a snapshot it shows a gentle fallback line. The timeline
++   re-renders roughly hourly purely so the "Stale" wording can flip as the
++   local snapshot ages. */
++
++struct RadarStatusEntry: TimelineEntry {
++    let date: Date
++    let snapshot: RadarStatusSnapshot?
++}
++
++struct RadarStatusProvider: TimelineProvider {
++    func placeholder(in context: Context) -> RadarStatusEntry {
++        RadarStatusEntry(date: .now, snapshot: nil)
++    }
++
++    func getSnapshot(in context: Context, completion: @escaping (RadarStatusEntry) -> Void) {
++        completion(RadarStatusEntry(date: .now, snapshot: RadarStatusSnapshotStore.load()))
++    }
++
++    func getTimeline(in context: Context, completion: @escaping (Timeline<RadarStatusEntry>) -> Void) {
++        let entry = RadarStatusEntry(date: .now, snapshot: RadarStatusSnapshotStore.load())
++        // One local entry; ask for a re-render in an hour so staleness
++        // wording stays honest. No networking happens here.
++        completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(60 * 60))))
++    }
++}
++
++/// The web app's dark navy tokens, duplicated minimally for the extension.
++private enum WidgetTheme {
++    static let bg = Color(red: 0x0E / 255, green: 0x14 / 255, blue: 0x24 / 255)
++    static let ink = Color(red: 0xE8 / 255, green: 0xEC / 255, blue: 0xF6 / 255)
++    static let muted = Color(red: 0x8A / 255, green: 0x95 / 255, blue: 0xB2 / 255)
++    static let dim = Color(red: 0x5C / 255, green: 0x66 / 255, blue: 0x8A / 255)
++    static let good = Color(red: 0x5E / 255, green: 0xEA / 255, blue: 0xD4 / 255)
++    static let warn = Color(red: 0xF0 / 255, green: 0xB3 / 255, blue: 0x6B / 255)
++}
++
++struct RadarStatusWidgetView: View {
++    @Environment(\.widgetFamily) private var family
++    let entry: RadarStatusEntry
++
++    var body: some View {
++        VStack(alignment: .leading, spacing: 4) {
++            Text("RELEASE MODEL RADAR")
++                .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
++                .tracking(1.1)
++                .foregroundStyle(WidgetTheme.dim)
++                .lineLimit(1)
++                .minimumScaleFactor(0.8)
++
++            Spacer(minLength: 0)
++
++            Text("Radar status")
++                .font(.system(size: 14, weight: .semibold))
++                .foregroundStyle(WidgetTheme.ink)
++
++            if let snapshot = entry.snapshot {
++                Text(snapshot.statusLine(now: entry.date))
++                    .font(.system(size: 12, weight: .medium, design: .monospaced))
++                    .foregroundStyle(snapshot.needsAttention(now: entry.date) ? WidgetTheme.warn : WidgetTheme.good)
++                    .lineLimit(1)
++                    .minimumScaleFactor(0.8)
++                if snapshot.failedSources > 0 {
++                    Text("\(snapshot.failedSources) source\(snapshot.failedSources == 1 ? "" : "s") failing")
++                        .font(.system(size: 9.5, design: .monospaced))
++                        .foregroundStyle(WidgetTheme.warn)
++                }
++                if family == .systemMedium {
++                    Text("Saved \(entry.snapshot?.savedAt.formatted(.dateTime.month(.abbreviated).day().hour().minute()) ?? "")")
++                        .font(.system(size: 9.5, design: .monospaced))
++                        .foregroundStyle(WidgetTheme.dim)
++                }
++            } else {
++                Text(RadarStatusSnapshotStore.fallbackLine)
++                    .font(.system(size: 11))
++                    .foregroundStyle(WidgetTheme.muted)
++            }
++        }
++        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
++        .containerBackground(WidgetTheme.bg, for: .widget)
++    }
++}
++
++struct RadarStatusWidget: Widget {
++    var body: some WidgetConfiguration {
++        StaticConfiguration(kind: RadarStatusSnapshotStore.widgetKind, provider: RadarStatusProvider()) { entry in
++            RadarStatusWidgetView(entry: entry)
++        }
++        .configurationDisplayName("Radar status")
++        .description("The latest radar check status saved by the app.")
++        .supportedFamilies([.systemSmall, .systemMedium])
++    }
++}
++
++@main
++struct RadarStatusWidgetBundle: WidgetBundle {
++    var body: some Widget {
++        RadarStatusWidget()
++    }
++}
+diff --git a/ReleaseModelRadar/Components/StatusBadge.swift b/ReleaseModelRadar/Components/StatusBadge.swift
+index b7e265e..6257dbe 100644
+--- a/ReleaseModelRadar/Components/StatusBadge.swift
++++ b/ReleaseModelRadar/Components/StatusBadge.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import WidgetKit
+ 
+ /* Header "last checked" badge — the iOS twin of the web header indicator.
+    Fetches /api/update-status at runtime:
+@@ -6,7 +7,21 @@ import SwiftUI
+    - >36h old      → "Stale · Jun 11" (warn tint)
+    - failed > 0    → warn tint
+    - api/network failure → "Not checked yet"
+-   Tapping shows the full detail line. */
++   Tapping shows the full detail line.
++
++   Phase 8B: a successful load (fresh or cached) also saves the small
++   shared widget snapshot — after the UI state is set, never blocking. */
++
++extension RadarStatusSnapshot {
++    /// App-side builder from the public update-status payload.
++    init(status: UpdateStatus, savedAt: Date = .now) {
++        self.init(
++            checkedAt: Fmt.isoDate(status.lastCheckedAt),
++            failedSources: status.failedSources,
++            savedAt: savedAt
++        )
++    }
++}
+ 
+ struct StatusBadgeView: View {
+     @State private var state: Loadable<UpdateStatus> = .loading
+@@ -41,12 +56,22 @@ struct StatusBadgeView: View {
+             let outcome = try await APIClient.shared.fetchWithCache("/api/update-status", as: UpdateStatus.self)
+             servedFromCacheAt = outcome.cachedAt
+             state = .loaded(outcome.value)
++            saveWidgetSnapshot(outcome.value)
+         } catch {
+             servedFromCacheAt = nil
+             state = .failed(error.localizedDescription)
+         }
+     }
+ 
++    /// Write the shared snapshot for RadarStatusWidget and nudge it to
++    /// re-render. Runs after the badge's own state is set; a tiny
++    /// UserDefaults write, so it can't block startup or change any
++    /// cache/API behaviour.
++    private func saveWidgetSnapshot(_ status: UpdateStatus) {
++        RadarStatusSnapshotStore.save(RadarStatusSnapshot(status: status))
++        WidgetCenter.shared.reloadTimelines(ofKind: RadarStatusSnapshotStore.widgetKind)
++    }
++
+     private var checkedDate: Date? {
+         if case .loaded(let status) = state { return Fmt.isoDate(status.lastCheckedAt) }
+         return nil
+diff --git a/ReleaseModelRadar/Features/Settings/SettingsView.swift b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+index b7f8a48..9a46c35 100644
+--- a/ReleaseModelRadar/Features/Settings/SettingsView.swift
++++ b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+@@ -72,13 +72,18 @@ struct SettingsView: View {
+                 }
+                 .listRowBackground(Theme.panel)
+ 
+-                Section("About") {
++                Section {
+                     LabeledContent("Data source", value: "release.brightening.ca")
+                     LabeledContent("Version", value: appVersion)
+                     if let url = URL(string: "https://release.brightening.ca") {
+                         Link("Open Release Model Radar on the web", destination: url)
+                             .foregroundStyle(Theme.good)
+                     }
++                } header: {
++                    Text("About")
++                } footer: {
++                    Text("Widgets show the latest radar status saved by the app.")
++                        .foregroundStyle(Theme.dim)
+                 }
+                 .listRowBackground(Theme.panel)
+             }
+diff --git a/ReleaseModelRadar/ReleaseModelRadar.entitlements b/ReleaseModelRadar/ReleaseModelRadar.entitlements
+new file mode 100644
+index 0000000..f781e02
+--- /dev/null
++++ b/ReleaseModelRadar/ReleaseModelRadar.entitlements
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
++<plist version="1.0">
++<dict>
++	<key>com.apple.security.application-groups</key>
++	<array>
++		<string>group.com.octopusandson.ReleaseModelRadar</string>
++	</array>
++</dict>
++</plist>
+diff --git a/ReleaseModelRadar/Widgets/RadarStatusSnapshot.swift b/ReleaseModelRadar/Widgets/RadarStatusSnapshot.swift
+new file mode 100644
+index 0000000..fecdab8
+--- /dev/null
++++ b/ReleaseModelRadar/Widgets/RadarStatusSnapshot.swift
+@@ -0,0 +1,73 @@
++import Foundation
++
++/* Phase 8B — widget foundation: the tiny shared snapshot.
++
++   The app writes this after it successfully loads /api/update-status
++   (fresh or from its own cache); the widget only READS it. Shared via the
++   App Group's UserDefaults — the widget is not an API client and never
++   touches the network.
++
++   Compiled into BOTH the app target and the RadarStatusWidget extension,
++   so it depends on Foundation only.
++
++   Contents are deliberately minimal and public: when the upstream daily
++   checker last ran, how many sources failed, and when the app saved the
++   snapshot. No candidates, no user data, no keys. */
++
++struct RadarStatusSnapshot: Codable, Equatable {
++    /// When the upstream daily checker last ran (from /api/update-status).
++    let checkedAt: Date?
++    /// Failed source count from the same public payload.
++    let failedSources: Int
++    /// When the app saved this snapshot.
++    let savedAt: Date
++
++    /// Same threshold the in-app badge uses.
++    static let staleInterval: TimeInterval = 36 * 60 * 60
++
++    func isStale(now: Date = .now) -> Bool {
++        guard let checkedAt else { return false }
++        return now.timeIntervalSince(checkedAt) > Self.staleInterval
++    }
++
++    /// Same wording as the in-app badge — staleness is computed at RENDER
++    /// time, so the widget's line stays honest as the snapshot ages.
++    func statusLine(now: Date = .now) -> String {
++        guard let checkedAt else { return "Not checked yet" }
++        let day = checkedAt.formatted(.dateTime.month(.abbreviated).day())
++        return isStale(now: now) ? "Stale · \(day)" : "Checked \(day)"
++    }
++
++    /// Warn tint condition, mirroring the in-app badge.
++    func needsAttention(now: Date = .now) -> Bool {
++        isStale(now: now) || failedSources > 0
++    }
++}
++
++enum RadarStatusSnapshotStore {
++    /// App Group shared by the app and the widget extension.
++    static let appGroupID = "group.com.octopusandson.ReleaseModelRadar"
++    /// WidgetKit kind string for targeted timeline reloads.
++    static let widgetKind = "RadarStatusWidget"
++    static let snapshotKey = "widget.radarStatus.snapshot"
++    /// What the widget says before the app has ever saved a snapshot.
++    static let fallbackLine = "Open the app to refresh radar status."
++
++    static var sharedDefaults: UserDefaults? {
++        UserDefaults(suiteName: appGroupID)
++    }
++
++    static func save(_ snapshot: RadarStatusSnapshot, in defaults: UserDefaults? = sharedDefaults) {
++        let encoder = JSONEncoder()
++        encoder.dateEncodingStrategy = .iso8601
++        guard let defaults, let data = try? encoder.encode(snapshot) else { return }
++        defaults.set(data, forKey: snapshotKey)
++    }
++
++    static func load(from defaults: UserDefaults? = sharedDefaults) -> RadarStatusSnapshot? {
++        guard let defaults, let data = defaults.data(forKey: snapshotKey) else { return nil }
++        let decoder = JSONDecoder()
++        decoder.dateDecodingStrategy = .iso8601
++        return try? decoder.decode(RadarStatusSnapshot.self, from: data)
++    }
++}
+diff --git a/ReleaseModelRadarTests/RadarStatusSnapshotTests.swift b/ReleaseModelRadarTests/RadarStatusSnapshotTests.swift
+new file mode 100644
+index 0000000..cab0c17
+--- /dev/null
++++ b/ReleaseModelRadarTests/RadarStatusSnapshotTests.swift
+@@ -0,0 +1,115 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++final class RadarStatusSnapshotTests: XCTestCase {
++
++    private var suiteName = ""
++    private var defaults: UserDefaults!
++
++    override func setUp() {
++        super.setUp()
++        suiteName = "test.widget.\(UUID().uuidString)"
++        defaults = UserDefaults(suiteName: suiteName)
++    }
++
++    override func tearDown() {
++        defaults.removePersistentDomain(forName: suiteName)
++        super.tearDown()
++    }
++
++    private func snapshot(checkedAt: Date?, failed: Int = 0, savedAt: Date = .now) -> RadarStatusSnapshot {
++        RadarStatusSnapshot(checkedAt: checkedAt, failedSources: failed, savedAt: savedAt)
++    }
++
++    // ── Encoding / decoding via the store ─────────────────────────────────────
++
++    func test_saveAndLoadRoundtrip() {
++        let original = snapshot(checkedAt: Date(timeIntervalSince1970: 1_770_000_000), failed: 2)
++        RadarStatusSnapshotStore.save(original, in: defaults)
++        let loaded = RadarStatusSnapshotStore.load(from: defaults)
++
++        XCTAssertNotNil(loaded)
++        XCTAssertEqual(loaded?.failedSources, 2)
++        // ISO8601 keeps second precision; compare at that granularity.
++        XCTAssertEqual(loaded?.checkedAt?.timeIntervalSince1970 ?? 0,
++                       original.checkedAt?.timeIntervalSince1970 ?? -1,
++                       accuracy: 1)
++    }
++
++    func test_nilCheckedAtSurvivesRoundtrip() {
++        RadarStatusSnapshotStore.save(snapshot(checkedAt: nil), in: defaults)
++        let loaded = RadarStatusSnapshotStore.load(from: defaults)
++        XCTAssertNotNil(loaded)
++        XCTAssertNil(loaded?.checkedAt)
++    }
++
++    // ── Fallback behaviour ────────────────────────────────────────────────────
++
++    func test_loadReturnsNilBeforeAppEverSaved() {
++        XCTAssertNil(RadarStatusSnapshotStore.load(from: defaults),
++                     "no snapshot ⇒ widget must show the fallback line")
++    }
++
++    func test_fallbackCopyIsRestrained() {
++        XCTAssertEqual(RadarStatusSnapshotStore.fallbackLine,
++                       "Open the app to refresh radar status.")
++    }
++
++    // ── Status line honesty (computed at render time) ─────────────────────────
++
++    func test_statusLineFreshCheck() {
++        let now = Date()
++        let line = snapshot(checkedAt: now.addingTimeInterval(-2 * 60 * 60)).statusLine(now: now)
++        XCTAssertTrue(line.hasPrefix("Checked "), "got: \(line)")
++    }
++
++    func test_statusLineStaleAfter36Hours() {
++        let now = Date()
++        let fresh = snapshot(checkedAt: now.addingTimeInterval(-35 * 60 * 60))
++        let stale = snapshot(checkedAt: now.addingTimeInterval(-37 * 60 * 60))
++        XCTAssertFalse(fresh.isStale(now: now))
++        XCTAssertTrue(stale.isStale(now: now))
++        XCTAssertTrue(stale.statusLine(now: now).hasPrefix("Stale · "))
++    }
++
++    func test_statusLineWithoutCheckDate() {
++        XCTAssertEqual(snapshot(checkedAt: nil).statusLine(), "Not checked yet")
++    }
++
++    func test_needsAttentionOnFailedSourcesOrStaleness() {
++        let now = Date()
++        XCTAssertFalse(snapshot(checkedAt: now, failed: 0).needsAttention(now: now))
++        XCTAssertTrue(snapshot(checkedAt: now, failed: 1).needsAttention(now: now))
++        XCTAssertTrue(snapshot(checkedAt: now.addingTimeInterval(-37 * 60 * 60)).needsAttention(now: now))
++    }
++
++    // ── App-side builder from the public payload ──────────────────────────────
++
++    func test_builderParsesUpdateStatus() {
++        let status = UpdateStatus(
++            lastCheckedAt: "2026-06-11T07:15:00.000Z",
++            sourcesChecked: 19,
++            candidatesFound: 4,
++            newCandidates: 1,
++            failedSources: 2
++        )
++        let built = RadarStatusSnapshot(status: status, savedAt: Date(timeIntervalSince1970: 0))
++        XCTAssertNotNil(built.checkedAt, "ISO date must parse")
++        XCTAssertEqual(built.failedSources, 2)
++        XCTAssertEqual(built.savedAt, Date(timeIntervalSince1970: 0))
++    }
++
++    func test_builderHandlesUnparseableDateHonestly() {
++        let status = UpdateStatus(
++            lastCheckedAt: "not-a-date",
++            sourcesChecked: 0,
++            candidatesFound: 0,
++            newCandidates: 0,
++            failedSources: 0
++        )
++        let built = RadarStatusSnapshot(status: status)
++        XCTAssertNil(built.checkedAt)
++        XCTAssertEqual(built.statusLine(), "Not checked yet",
++                       "a bad date must degrade to the honest unknown line")
++    }
++}
+-- 
+2.43.0
+
