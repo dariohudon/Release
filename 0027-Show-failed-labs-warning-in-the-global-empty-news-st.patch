@@ -1,0 +1,39 @@
+From c595113323315a457728a60db2f1a36794e344b5 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 21:53:46 +0000
+Subject: [PATCH] Show failed-labs warning in the global empty news state
+
+---
+ ReleaseModelRadar/Features/News/NewsView.swift | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 9bdc543..9e266bb 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -51,13 +51,21 @@ struct NewsView: View {
+                 )
+             } else {
+                 // Generic global empty state — correct for All News.
+-                // Even an empty cached payload should say it's cached.
++                // Even an empty cached payload should say it's cached, and
++                // a failed-labs warning still shows: empty doesn't mean
++                // hiding operational context.
+                 VStack(spacing: 0) {
+                     if isCached {
+                         CachedDataNotice(savedAt: cachedAt)
+                             .padding(.horizontal, 16)
+                             .padding(.top, 12)
+                     }
++                    if let failed = payload.failedLabs, !failed.isEmpty {
++                        failedLabsText(failed)
++                            .frame(maxWidth: .infinity, alignment: .leading)
++                            .padding(.horizontal, 16)
++                            .padding(.top, 10)
++                    }
+                     EmptyStateView(
+                         icon: "newspaper",
+                         title: "No news available",
+-- 
+2.43.0
+

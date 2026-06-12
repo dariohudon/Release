@@ -28,6 +28,7 @@ af348ebbad0545e2351443a3247366b32852fe76a9c2a6f097d29a483a1e0d6a  0023-Fix-Phase
 086dc3873ef25539e771aee5e6dd931434ecdb312465d4cf40b58d25f7fc7e5b  0024-Use-Today-heading-on-the-main-screen.patch
 53501895d9966c0be0e33d6da497908a6b50a6e19008e37f2ba5407e20d96ad3  0025-Add-favourite-lab-For-You-news-section-and-filter.patch
 c08982d0c2803e7ae2ac257311c8ffdd5270ae2cffc8dbd52404c53b12b55233  0026-Fix-Phase-10B-news-filter-blockers.patch
+15328193000efe2997a8399bdfbfb66e9ba0c5d20caf8efcc8bd530681b75941  0027-Show-failed-labs-warning-in-the-global-empty-news-st.patch
 ed6c92f60f044e1f46857d9f49e98b5b07fb05bf583afe68c47b76565add73ef  release-model-radar-ios.tar.gz
 582824c7ff6137518686bb7049386efa13b915ae59e19555050df65151ecbfa3  project.pbxproj
 6262105229a132e4f1582b251441bd5e9a683aa5a8a7db6ab87c62956942ed48  phase-6c-docs/APPLY.md
@@ -68,4 +69,4 @@ a331d51864743ebe4e00dd22360b4a538b6b3ac26a6b3eb54094e60a36959a12  phase-9-files/
 7f45176cc46ffc5f3c3eeae0598bbb82a841ebdc6587df237815d5935501f4f8  phase-10a-files/app-store-readiness.md
 cceb6949a77ca729a63e41e833d8c9228d1db12ee4dba711a5b3df67a5d7dbe1  phase-10b-files/FavoriteLabNews.swift
 c53a626aa3f2d5a8ea4ecaeccfa0491ebe1da9140c57fe8ebb755b31e3983e97  phase-10b-files/FavoriteLabNewsTests.swift
-68efaf89c075769965a1d1e46f3fb338419eb2c00a9735c050164e1a75e7339e  phase-10b-files/NewsView.swift
+288ccc590220877d548d1a3e321aa4a78874a61f702fc4945c826ce105a9a847  phase-10b-files/NewsView.swift

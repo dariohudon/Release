@@ -51,12 +51,20 @@ struct NewsView: View {
                 )
             } else {
                 // Generic global empty state — correct for All News.
-                // Even an empty cached payload should say it's cached.
+                // Even an empty cached payload should say it's cached, and
+                // a failed-labs warning still shows: empty doesn't mean
+                // hiding operational context.
                 VStack(spacing: 0) {
                     if isCached {
                         CachedDataNotice(savedAt: cachedAt)
                             .padding(.horizontal, 16)
                             .padding(.top, 12)
+                    }
+                    if let failed = payload.failedLabs, !failed.isEmpty {
+                        failedLabsText(failed)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 10)
                     }
                     EmptyStateView(
                         icon: "newspaper",
