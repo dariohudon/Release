@@ -1,0 +1,404 @@
+From 26caaf16a1dc82591283b277adda06547ec555b7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 22:06:10 +0000
+Subject: [PATCH] Add Lab Activity to related News stories handoff
+
+---
+ .../Features/Labs/LabActivityView.swift       |  38 ++++++-
+ .../Features/Labs/LabsView.swift              |  24 ++--
+ .../Features/News/FavoriteLabNews.swift       |  33 ++++++
+ .../Features/News/NewsView.swift              | 105 ++++++++++++++++--
+ ReleaseModelRadar/ReleaseModelRadarApp.swift  |  22 +++-
+ .../FavoriteLabNewsTests.swift                |  30 +++++
+ 6 files changed, 224 insertions(+), 28 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabActivityView.swift b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+index abfb8a6..759e66c 100644
+--- a/ReleaseModelRadar/Features/Labs/LabActivityView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+@@ -10,6 +10,8 @@ struct LabActivityView: View {
+     let isCached: Bool
+     let cachedAt: Date?
+     let onSelect: (String) -> Void
++    /// Phase 10C: (lab id, lab name) → News tab filtered to that lab.
++    let onViewStories: (String, String) -> Void
+ 
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @Environment(\.dismiss) private var dismiss
+@@ -90,7 +92,11 @@ struct LabActivityView: View {
+                             onSelect(entry.activity.labID)
+                             dismiss()
+                         },
+-                        onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) }
++                        onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) },
++                        onViewStories: {
++                            onViewStories(entry.activity.labID, entry.lab?.name ?? entry.activity.labID)
++                            dismiss()
++                        }
+                     )
+                     .listRowBackground(Theme.panel)
+                     .listRowSeparatorTint(Theme.line)
+@@ -107,6 +113,7 @@ private struct ActivityRow: View {
+     let lab: Lab?
+     let onOpen: () -> Void
+     let onAcknowledge: () -> Void
++    let onViewStories: () -> Void
+ 
+     private var labName: String { lab?.name ?? activity.labID }
+ 
+@@ -123,9 +130,33 @@ private struct ActivityRow: View {
+     }
+ 
+     var body: some View {
+-        // Two SIBLING buttons: the navigational row content and the
+-        // acknowledge action. Neither wraps the other, so taps can't
++        // SIBLING buttons only — row content, acknowledge, and the
++        // related-stories action. None wraps another, so taps can't
+         // double-fire and VoiceOver focuses each independently.
++        VStack(alignment: .leading, spacing: 0) {
++            topRow
++
++            Button(action: onViewStories) {
++                HStack(spacing: 5) {
++                    Image(systemName: "newspaper")
++                        .font(.system(size: 11))
++                    Text("View related stories")
++                        .font(.footnote.weight(.semibold))
++                }
++                .foregroundStyle(Theme.good)
++                .frame(height: 44) // HIG hit target; row stays slim below
++                .contentShape(Rectangle())
++            }
++            .buttonStyle(.plain)
++            .padding(.vertical, -10)
++            .padding(.leading, 24) // align under the text column, past the dot
++            .accessibilityLabel("View related stories from \(labName)")
++            .accessibilityHint("Opens News filtered to this lab.")
++        }
++        .padding(.vertical, 4)
++    }
++
++    private var topRow: some View {
+         HStack(alignment: .center, spacing: 4) {
+             Button(action: onOpen) {
+                 HStack(alignment: .top, spacing: 12) {
+@@ -172,6 +203,5 @@ private struct ActivityRow: View {
+             .accessibilityLabel("Mark \(labName) activity as seen")
+             .accessibilityHint("Clears this lab's indicator without leaving the list.")
+         }
+-        .padding(.vertical, 4)
+     }
+ }
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 15b80d3..19aaa09 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -6,6 +6,10 @@ import SwiftUI
+    last fresh load, and a gentle offline notice when showing cached data. */
+ 
+ struct LabsView: View {
++    /// Phase 10C: forwards a "view related stories" request (lab id, lab
++    /// name) up to the tab container, which switches to News.
++    var onViewRelatedStories: (String, String) -> Void = { _, _ in }
++
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<LabsPayload> = .loading
+     @State private var cachedAt: Date?
+@@ -60,15 +64,17 @@ struct LabsView: View {
+                     LabActivityView(
+                         labs: loadedLabs,
+                         isCached: isCached,
+-                        cachedAt: cachedAt
+-                    ) { labID in
+-                        // Surface the lab in the list: lift any filter hiding
+-                        // it, then highlight its row briefly.
+-                        if showFavoritesOnly && !favorites.isFavorite(labID) {
+-                            showFavoritesOnly = false
+-                        }
+-                        highlightedLabID = labID
+-                    }
++                        cachedAt: cachedAt,
++                        onSelect: { labID in
++                            // Surface the lab in the list: lift any filter
++                            // hiding it, then highlight its row briefly.
++                            if showFavoritesOnly && !favorites.isFavorite(labID) {
++                                showFavoritesOnly = false
++                            }
++                            highlightedLabID = labID
++                        },
++                        onViewStories: onViewRelatedStories
++                    )
+                     .environmentObject(favorites)
+                 }
+                 .task(id: highlightedLabID) {
+diff --git a/ReleaseModelRadar/Features/News/FavoriteLabNews.swift b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+index 02e53df..0590cb4 100644
+--- a/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
++++ b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+@@ -60,4 +60,37 @@ enum FavoriteLabNews {
+         let picked = select(from: items, favoriteIDs: favoriteIDs, perLabLimit: perLabLimit)
+         return picked.isEmpty ? .noMatches : .stories(picked)
+     }
++
++    // ── Related stories (Phase 10C: Lab Activity → News) ─────────────────────
++
++    enum RelatedState: Equatable {
++        /// The lab id is missing/blank — never guess; show a safe state.
++        case invalidLab
++        /// Valid lab id, but the feed has no stories from it.
++        case noStories
++        /// All stories from this lab, in API (newest-first) order — no
++        /// per-lab cap: the user explicitly asked for this one lab.
++        case stories([NewsItem])
++    }
++
++    /// Every story from one lab, matched by the stable lab id only.
++    static func relatedStories(to labID: String, in items: [NewsItem]) -> [NewsItem] {
++        items.filter { $0.lab == labID }
++    }
++
++    static func relatedState(labID: String?, items: [NewsItem]) -> RelatedState {
++        guard let labID, !labID.trimmingCharacters(in: .whitespaces).isEmpty else {
++            return .invalidLab
++        }
++        let matches = relatedStories(to: labID, in: items)
++        return matches.isEmpty ? .noStories : .stories(matches)
++    }
++}
++
++/// A "show me this lab's stories" request handed from Lab Activity to the
++/// News tab. Plain value state lifted to the tab container — deliberately
++/// not persisted and not routed through any URL/deep-link machinery.
++struct RelatedNewsLab: Equatable {
++    let id: String
++    let name: String
+ }
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 9e266bb..4520348 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -6,6 +6,11 @@ import SwiftUI
+ /// labs only. All News stays fully visible by default; everything is
+ /// local — no backend personalization.
+ struct NewsView: View {
++    /// Phase 10C: when set (from Lab Activity), the tab shows only this
++    /// lab's stories until cleared from the toolbar. Clearing returns to
++    /// whatever mode (All News / Favourite Labs) was active before.
++    @Binding var relatedLab: RelatedNewsLab?
++
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<NewsPayload> = .loading
+     @State private var cachedAt: Date?
+@@ -20,14 +25,25 @@ struct NewsView: View {
+                 .background(Theme.bg)
+                 .toolbar {
+                     ToolbarItem(placement: .topBarTrailing) {
+-                        Button {
+-                            showFavoritesOnly.toggle()
+-                        } label: {
+-                            Image(systemName: showFavoritesOnly ? "star.fill" : "star")
+-                                .foregroundStyle(showFavoritesOnly ? Theme.warn : Theme.dim)
++                        if relatedLab != nil {
++                            Button {
++                                relatedLab = nil
++                            } label: {
++                                Image(systemName: "xmark.circle.fill")
++                                    .foregroundStyle(Theme.muted)
++                            }
++                            .accessibilityLabel("Clear related stories filter")
++                            .accessibilityHint("Returns to the normal news view.")
++                        } else {
++                            Button {
++                                showFavoritesOnly.toggle()
++                            } label: {
++                                Image(systemName: showFavoritesOnly ? "star.fill" : "star")
++                                    .foregroundStyle(showFavoritesOnly ? Theme.warn : Theme.dim)
++                            }
++                            .accessibilityLabel(showFavoritesOnly ? "Show all news" : "Show favourite labs only")
++                            .accessibilityValue(showFavoritesOnly ? "favourite labs filter on" : "favourite labs filter off")
+                         }
+-                        .accessibilityLabel(showFavoritesOnly ? "Show all news" : "Show favourite labs only")
+-                        .accessibilityValue(showFavoritesOnly ? "favourite labs filter on" : "favourite labs filter off")
+                     }
+                 }
+         }
+@@ -42,7 +58,9 @@ struct NewsView: View {
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
+         case .loaded(let payload) where payload.items.isEmpty:
+-            if showFavoritesOnly {
++            if let relatedLab {
++                relatedContent(relatedLab, payload: payload)
++            } else if showFavoritesOnly {
+                 // Favourite-aware even when the whole feed is empty:
+                 // no favourites → invite to star; favourites → no matches.
+                 favoritesOnlyContent(
+@@ -76,12 +94,75 @@ struct NewsView: View {
+                 .background(Theme.bg)
+             }
+         case .loaded(let payload):
+-            let forYou = FavoriteLabNews.state(items: payload.items, favoriteIDs: favorites.favoriteIDs)
+-            if showFavoritesOnly {
+-                favoritesOnlyContent(forYou, failedLabs: payload.failedLabs)
++            if let relatedLab {
++                relatedContent(relatedLab, payload: payload)
+             } else {
+-                allNewsList(payload, forYou: forYou)
++                let forYou = FavoriteLabNews.state(items: payload.items, favoriteIDs: favorites.favoriteIDs)
++                if showFavoritesOnly {
++                    favoritesOnlyContent(forYou, failedLabs: payload.failedLabs)
++                } else {
++                    allNewsList(payload, forYou: forYou)
++                }
++            }
++        }
++    }
++
++    /// Related-lab mode (from Lab Activity): every story from one lab,
++    /// matched by stable lab id only — with the same operational context
++    /// (cached notice, failed-labs warning) as every other mode.
++    @ViewBuilder
++    private func relatedContent(_ lab: RelatedNewsLab, payload: NewsPayload) -> some View {
++        switch FavoriteLabNews.relatedState(labID: lab.id, items: payload.items) {
++        case .invalidLab:
++            cachedAwareEmptyState(
++                icon: "newspaper",
++                title: "No related stories",
++                message: "No related stories found.",
++                failedLabs: payload.failedLabs
++            )
++        case .noStories:
++            cachedAwareEmptyState(
++                icon: "newspaper",
++                title: "Nothing new from \(lab.name)",
++                message: "No recent stories from this lab.",
++                failedLabs: payload.failedLabs
++            )
++        case .stories(let items):
++            List {
++                if isCached {
++                    Section {
++                        CachedDataNotice(savedAt: cachedAt)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparator(.hidden)
++                    }
++                }
++                if let failed = payload.failedLabs, !failed.isEmpty {
++                    Section {
++                        failedLabsText(failed)
++                            .listRowBackground(Theme.warn.opacity(0.08))
++                    }
++                }
++                Section {
++                    ForEach(items) { item in
++                        NewsRow(item: item)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparatorTint(Theme.line)
++                    }
++                } header: {
++                    VStack(alignment: .leading, spacing: 2) {
++                        Text("RELATED STORIES")
++                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
++                            .tracking(1.2)
++                            .foregroundStyle(Theme.ink)
++                        Text("Stories from \(lab.name).")
++                            .font(.system(size: 11))
++                            .foregroundStyle(Theme.muted)
++                            .textCase(nil)
++                    }
++                }
+             }
++            .radarListStyle()
++            .refreshable { await load(force: true) }
+         }
+     }
+ 
+diff --git a/ReleaseModelRadar/ReleaseModelRadarApp.swift b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+index d300b29..6bc97b1 100644
+--- a/ReleaseModelRadar/ReleaseModelRadarApp.swift
++++ b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+@@ -11,23 +11,39 @@ struct ReleaseModelRadarApp: App {
+     }
+ }
+ 
++enum AppTab: Hashable {
++    case today, labs, definitions, news, settings
++}
++
+ struct RootView: View {
+     @StateObject private var tuneRadar = TuneRadarPreferencesStore()
+     @StateObject private var favorites = LabFavoritesStore()
++    @State private var selectedTab: AppTab = .today
++    /// Lab Activity → News handoff (Phase 10C). Plain local state; cleared
++    /// from the News toolbar, never persisted.
++    @State private var relatedNewsLab: RelatedNewsLab?
+ 
+     var body: some View {
+-        TabView {
++        TabView(selection: $selectedTab) {
+             ModelsView()
+                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
+-            LabsView()
++                .tag(AppTab.today)
++            LabsView(onViewRelatedStories: { id, name in
++                relatedNewsLab = RelatedNewsLab(id: id, name: name)
++                selectedTab = .news
++            })
+                 .tabItem { Label("Labs", systemImage: "building.2") }
++                .tag(AppTab.labs)
+                 .badge(favorites.newInfoLabIDs.count) // in-app only; zero hides it
+             DefinitionsView()
+                 .tabItem { Label("Definitions", systemImage: "book") }
+-            NewsView()
++                .tag(AppTab.definitions)
++            NewsView(relatedLab: $relatedNewsLab)
+                 .tabItem { Label("News", systemImage: "newspaper") }
++                .tag(AppTab.news)
+             SettingsView()
+                 .tabItem { Label("Settings", systemImage: "gearshape") }
++                .tag(AppTab.settings)
+         }
+         .environmentObject(tuneRadar)
+         .environmentObject(favorites)
+diff --git a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+index 9d727df..36bf157 100644
+--- a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
++++ b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+@@ -75,4 +75,34 @@ final class FavoriteLabNewsTests: XCTestCase {
+         XCTAssertEqual(items.count, 3)
+         XCTAssertTrue(items.allSatisfy { $0.lab == "mistral" })
+     }
++
++    // ── Related stories (Phase 10C) ───────────────────────────────────────────
++
++    func test_relatedStoriesMatchSingleLabIDOnlyAndUncapped() {
++        let related = FavoriteLabNews.relatedStories(to: "anthropic", in: feed)
++        XCTAssertEqual(related.count, 4, "related mode has no per-lab cap")
++        XCTAssertTrue(related.allSatisfy { $0.lab == "anthropic" })
++        XCTAssertEqual(related.map(\.id),
++                       ["anthropic-0", "anthropic-1", "anthropic-2", "anthropic-3"],
++                       "newest-first feed order is kept")
++    }
++
++    func test_relatedStateInvalidForMissingOrBlankLabID() {
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: nil, items: feed), .invalidLab)
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "   ", items: feed), .invalidLab)
++    }
++
++    func test_relatedStateNoStoriesForUnknownLabOrEmptyFeed() {
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "deepseek", items: feed), .noStories)
++        XCTAssertEqual(FavoriteLabNews.relatedState(labID: "anthropic", items: []), .noStories)
++    }
++
++    func test_relatedStateCarriesAllStoriesForKnownLab() {
++        let state = FavoriteLabNews.relatedState(labID: "openai", items: feed)
++        guard case .stories(let items) = state else {
++            return XCTFail("expected stories, got \(state)")
++        }
++        XCTAssertEqual(items.count, 4)
++        XCTAssertTrue(items.allSatisfy { $0.lab == "openai" })
++    }
+ }
+-- 
+2.43.0
+
