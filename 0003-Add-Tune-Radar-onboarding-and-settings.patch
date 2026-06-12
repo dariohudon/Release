@@ -1,0 +1,464 @@
+From f4e66efeecdb69a39d6b4f5c8fec8e9882ef3d29 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 03:17:26 +0000
+Subject: [PATCH] Add Tune Radar onboarding and settings
+
+---
+ README.md                                     |   7 +
+ .../Features/Models/ModelDetailView.swift     |   2 +-
+ .../Features/Settings/SettingsView.swift      |  78 +++++++++++
+ ReleaseModelRadar/ReleaseModelRadarApp.swift  |  19 +++
+ .../TuneRadar/TuneRadarOnboardingView.swift   | 124 ++++++++++++++++++
+ .../TuneRadar/TuneRadarPreferences.swift      |  53 ++++++++
+ .../TuneRadar/TuneRadarPreferencesStore.swift |  75 +++++++++++
+ docs/ios-mvp-plan.md                          |   5 +-
+ 8 files changed, 361 insertions(+), 2 deletions(-)
+ create mode 100644 ReleaseModelRadar/Features/Settings/SettingsView.swift
+ create mode 100644 ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+ create mode 100644 ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
+ create mode 100644 ReleaseModelRadar/TuneRadar/TuneRadarPreferencesStore.swift
+
+diff --git a/README.md b/README.md
+index 5854ab7..ef19729 100644
+--- a/README.md
++++ b/README.md
+@@ -31,6 +31,13 @@ folder contents in. Every Swift file is self-contained.
+ | Labs | `/api/labs` | Name, brand color, model count |
+ | Definitions | `/api/definitions` | Search across term / aliases / definitions; tap to expand Plain English · Why it matters · Example |
+ | News | `/api/news` | Newest first, official vs news-search tags, unreachable labs notice, outbound links |
++| Settings | local only | Tune Radar preferences (two questions, UserDefaults), edit/reset, About |
++
++On first launch a **Tune Radar** onboarding asks two questions (what you
++mostly use AI for, what matters most). Answers are stored on-device only
++(UserDefaults), are skippable, and can be edited or reset in Settings. They
++are not used for recommendations yet — reserved for future "Why it matters
++to you" guidance; public guidance stays "Useful for".
+ 
+ The Radar toolbar shows the **last-checked badge** from `/api/update-status`:
+ "Checked Jun 11", "Stale · Jun 11" past 36 h (amber, like the web), or
+diff --git a/ReleaseModelRadar/Features/Models/ModelDetailView.swift b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+index 965b575..b1462e9 100644
+--- a/ReleaseModelRadar/Features/Models/ModelDetailView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelDetailView.swift
+@@ -13,7 +13,7 @@ struct ModelDetailView: View {
+                 statGrid
+                 listSection(title: "STRONG AT", items: model.strengths, accent: Theme.good)
+                 listSection(title: "WATCH-OUTS", items: model.watchouts, accent: Theme.warn)
+-                textSection(title: "USE IT FOR", text: model.useFor)
++                textSection(title: "USEFUL FOR", text: model.useFor)
+                 sentimentSection
+                 if let url = URL(string: model.link) {
+                     Link(destination: url) {
+diff --git a/ReleaseModelRadar/Features/Settings/SettingsView.swift b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+new file mode 100644
+index 0000000..4660a33
+--- /dev/null
++++ b/ReleaseModelRadar/Features/Settings/SettingsView.swift
+@@ -0,0 +1,78 @@
++import SwiftUI
++
++/* Settings tab: view/edit/reset the local Tune Radar preferences, plus a
++   small read-only About section. No accounts, no sync — everything here is
++   on-device UserDefaults. */
++
++struct SettingsView: View {
++    @EnvironmentObject private var store: TuneRadarPreferencesStore
++    @State private var showResetConfirm = false
++
++    var body: some View {
++        NavigationStack {
++            List {
++                Section {
++                    Picker("Mostly use AI for", selection: usageBinding) {
++                        Text("Not set").tag(UsageFocus?.none)
++                        ForEach(UsageFocus.allCases) { option in
++                            Text(option.label).tag(Optional(option))
++                        }
++                    }
++                    Picker("Matters most", selection: priorityBinding) {
++                        Text("Not set").tag(RadarPriority?.none)
++                        ForEach(RadarPriority.allCases) { option in
++                            Text(option.label).tag(Optional(option))
++                        }
++                    }
++                } header: {
++                    Text("Tune Radar")
++                } footer: {
++                    Text("Stored only on this device. A future update will use these to explain why a release matters to you; public guidance stays generic (\u{201C}Useful for\u{201D}).")
++                        .foregroundStyle(Theme.dim)
++                }
++                .listRowBackground(Theme.panel)
++
++                Section {
++                    Button("Reset Tune Radar preferences", role: .destructive) {
++                        showResetConfirm = true
++                    }
++                }
++                .listRowBackground(Theme.panel)
++
++                Section("About") {
++                    LabeledContent("Data source", value: "release.brightening.ca")
++                    LabeledContent("Version", value: appVersion)
++                    if let url = URL(string: "https://release.brightening.ca") {
++                        Link("Open Release Model Radar on the web", destination: url)
++                            .foregroundStyle(Theme.good)
++                    }
++                }
++                .listRowBackground(Theme.panel)
++            }
++            .radarListStyle()
++            .navigationTitle("Settings")
++            .confirmationDialog(
++                "Reset Tune Radar preferences?",
++                isPresented: $showResetConfirm,
++                titleVisibility: .visible
++            ) {
++                Button("Reset", role: .destructive) { store.reset() }
++                Button("Cancel", role: .cancel) {}
++            } message: {
++                Text("Both answers are cleared and the two quick questions will show again.")
++            }
++        }
++    }
++
++    private var usageBinding: Binding<UsageFocus?> {
++        Binding(get: { store.preferences.usage }, set: { store.setUsage($0) })
++    }
++
++    private var priorityBinding: Binding<RadarPriority?> {
++        Binding(get: { store.preferences.priority }, set: { store.setPriority($0) })
++    }
++
++    private var appVersion: String {
++        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
++    }
++}
+diff --git a/ReleaseModelRadar/ReleaseModelRadarApp.swift b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+index 4047bfa..8a448f3 100644
+--- a/ReleaseModelRadar/ReleaseModelRadarApp.swift
++++ b/ReleaseModelRadar/ReleaseModelRadarApp.swift
+@@ -12,6 +12,8 @@ struct ReleaseModelRadarApp: App {
+ }
+ 
+ struct RootView: View {
++    @StateObject private var tuneRadar = TuneRadarPreferencesStore()
++
+     var body: some View {
+         TabView {
+             ModelsView()
+@@ -22,8 +24,25 @@ struct RootView: View {
+                 .tabItem { Label("Definitions", systemImage: "book") }
+             NewsView()
+                 .tabItem { Label("News", systemImage: "newspaper") }
++            SettingsView()
++                .tabItem { Label("Settings", systemImage: "gearshape") }
++        }
++        .environmentObject(tuneRadar)
++        // First launch (or after a reset): present Tune Radar while
++        // preferences are incomplete and the user hasn't saved or skipped.
++        .fullScreenCover(isPresented: showOnboarding) {
++            TuneRadarOnboardingView()
++                .environmentObject(tuneRadar)
++                .preferredColorScheme(.dark)
+         }
+     }
++
++    private var showOnboarding: Binding<Bool> {
++        Binding(
++            get: { tuneRadar.shouldShowOnboarding },
++            set: { _ in } // dismissal is driven by the store (save or skip)
++        )
++    }
+ }
+ 
+ #Preview {
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+new file mode 100644
+index 0000000..07bce5b
+--- /dev/null
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarOnboardingView.swift
+@@ -0,0 +1,124 @@
++import SwiftUI
++
++/* First-launch "Tune Radar" onboarding: exactly two questions, both
++   skippable. Answers stay on this device and are not used for anything yet —
++   they will power future "Why it matters to you" guidance. */
++
++struct TuneRadarOnboardingView: View {
++    @EnvironmentObject private var store: TuneRadarPreferencesStore
++
++    @State private var usage: UsageFocus?
++    @State private var priority: RadarPriority?
++
++    var body: some View {
++        NavigationStack {
++            ScrollView {
++                VStack(alignment: .leading, spacing: 26) {
++                    header
++
++                    questionSection("What do you mostly use AI for?") {
++                        ForEach(UsageFocus.allCases) { option in
++                            OptionRow(label: option.label, isSelected: usage == option) {
++                                usage = option
++                            }
++                        }
++                    }
++
++                    questionSection("What matters most to you?") {
++                        ForEach(RadarPriority.allCases) { option in
++                            OptionRow(label: option.label, isSelected: priority == option) {
++                                priority = option
++                            }
++                        }
++                    }
++
++                    VStack(spacing: 12) {
++                        Button {
++                            guard let usage, let priority else { return }
++                            store.completeOnboarding(usage: usage, priority: priority)
++                        } label: {
++                            Text("Save & start")
++                                .font(.headline)
++                                .foregroundStyle(Theme.bg)
++                                .frame(maxWidth: .infinity)
++                                .padding(.vertical, 13)
++                                .background(
++                                    (usage != nil && priority != nil) ? Theme.good : Theme.dim,
++                                    in: RoundedRectangle(cornerRadius: 11)
++                                )
++                        }
++                        .buttonStyle(.plain)
++                        .disabled(usage == nil || priority == nil)
++
++                        Button {
++                            store.markOnboardingSeen()
++                        } label: {
++                            Text("Skip for now")
++                                .font(.subheadline)
++                                .foregroundStyle(Theme.muted)
++                        }
++                        .buttonStyle(.plain)
++                    }
++                    .padding(.top, 6)
++                }
++                .padding(20)
++            }
++            .background(Theme.bg)
++            .navigationTitle("Tune Radar")
++            .navigationBarTitleDisplayMode(.inline)
++        }
++        .onAppear {
++            usage = store.preferences.usage
++            priority = store.preferences.priority
++        }
++    }
++
++    private var header: some View {
++        VStack(alignment: .leading, spacing: 8) {
++            Text("Two quick questions")
++                .font(.title2.weight(.bold))
++                .foregroundStyle(Theme.ink)
++            Text("They tune the radar for you. Answers stay on this device, and you can change or reset them anytime in Settings.")
++                .font(.subheadline)
++                .foregroundStyle(Theme.muted)
++        }
++    }
++
++    private func questionSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
++        VStack(alignment: .leading, spacing: 10) {
++            Text(title)
++                .font(.headline)
++                .foregroundStyle(Theme.ink)
++            VStack(spacing: 8, content: content)
++        }
++    }
++}
++
++/// Single-select option card.
++struct OptionRow: View {
++    let label: String
++    let isSelected: Bool
++    let action: () -> Void
++
++    var body: some View {
++        Button(action: action) {
++            HStack {
++                Text(label)
++                    .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
++                    .foregroundStyle(Theme.ink)
++                Spacer()
++                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
++                    .foregroundStyle(isSelected ? Theme.good : Theme.dim)
++            }
++            .padding(.horizontal, 14)
++            .padding(.vertical, 13)
++            .background(Theme.panel, in: RoundedRectangle(cornerRadius: 11))
++            .overlay(
++                RoundedRectangle(cornerRadius: 11)
++                    .stroke(isSelected ? Theme.good.opacity(0.6) : Theme.line)
++            )
++        }
++        .buttonStyle(.plain)
++        .accessibilityAddTraits(isSelected ? .isSelected : [])
++    }
++}
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift b/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
+new file mode 100644
+index 0000000..35ce866
+--- /dev/null
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarPreferences.swift
+@@ -0,0 +1,53 @@
++import Foundation
++
++/* Tune Radar preferences — the two onboarding questions.
++   Local-only: stored in UserDefaults via TuneRadarPreferencesStore, never
++   sent anywhere. These will power future "Why it matters to you" guidance;
++   public generic guidance stays "Useful for". */
++
++enum UsageFocus: String, CaseIterable, Identifiable, Codable {
++    case writing
++    case coding
++    case research
++    case automation
++    case everything
++
++    var id: String { rawValue }
++
++    var label: String {
++        switch self {
++        case .writing: return "Writing & content"
++        case .coding: return "Coding & building"
++        case .research: return "Research & analysis"
++        case .automation: return "Automation & agents"
++        case .everything: return "A bit of everything"
++        }
++    }
++}
++
++enum RadarPriority: String, CaseIterable, Identifiable, Codable {
++    case quality
++    case value
++    case speed
++    case openness
++
++    var id: String { rawValue }
++
++    var label: String {
++        switch self {
++        case .quality: return "Top quality"
++        case .value: return "Price & value"
++        case .speed: return "Speed"
++        case .openness: return "Privacy & open weights"
++        }
++    }
++}
++
++struct TuneRadarPreferences: Equatable {
++    var usage: UsageFocus?
++    var priority: RadarPriority?
++
++    var isComplete: Bool { usage != nil && priority != nil }
++
++    static let empty = TuneRadarPreferences(usage: nil, priority: nil)
++}
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarPreferencesStore.swift b/ReleaseModelRadar/TuneRadar/TuneRadarPreferencesStore.swift
+new file mode 100644
+index 0000000..26081ef
+--- /dev/null
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarPreferencesStore.swift
+@@ -0,0 +1,75 @@
++import Foundation
++import SwiftUI
++
++/* The single gateway to Tune Radar persistence. All UserDefaults access for
++   preferences lives here — no scattered direct calls. Local-only by design:
++   no accounts, no sync, no network. Injectable defaults keep it testable. */
++
++@MainActor
++final class TuneRadarPreferencesStore: ObservableObject {
++
++    enum Key {
++        static let usage = "tuneRadar.usage"
++        static let priority = "tuneRadar.priority"
++        static let seenOnboarding = "tuneRadar.hasSeenOnboarding"
++    }
++
++    @Published private(set) var preferences: TuneRadarPreferences
++    @Published private(set) var hasSeenOnboarding: Bool
++
++    private let defaults: UserDefaults
++
++    init(defaults: UserDefaults = .standard) {
++        self.defaults = defaults
++        self.preferences = TuneRadarPreferences(
++            usage: defaults.string(forKey: Key.usage).flatMap(UsageFocus.init(rawValue:)),
++            priority: defaults.string(forKey: Key.priority).flatMap(RadarPriority.init(rawValue:))
++        )
++        self.hasSeenOnboarding = defaults.bool(forKey: Key.seenOnboarding)
++    }
++
++    /// Onboarding appears while preferences are incomplete and the user has
++    /// not yet seen (saved or skipped) it. Skipping keeps the app fully
++    /// usable; resetting brings onboarding back.
++    var shouldShowOnboarding: Bool {
++        !hasSeenOnboarding && !preferences.isComplete
++    }
++
++    func setUsage(_ usage: UsageFocus?) {
++        preferences.usage = usage
++        if let usage {
++            defaults.set(usage.rawValue, forKey: Key.usage)
++        } else {
++            defaults.removeObject(forKey: Key.usage)
++        }
++    }
++
++    func setPriority(_ priority: RadarPriority?) {
++        preferences.priority = priority
++        if let priority {
++            defaults.set(priority.rawValue, forKey: Key.priority)
++        } else {
++            defaults.removeObject(forKey: Key.priority)
++        }
++    }
++
++    func completeOnboarding(usage: UsageFocus, priority: RadarPriority) {
++        setUsage(usage)
++        setPriority(priority)
++        markOnboardingSeen()
++    }
++
++    func markOnboardingSeen() {
++        hasSeenOnboarding = true
++        defaults.set(true, forKey: Key.seenOnboarding)
++    }
++
++    /// Clears both answers and the seen flag — onboarding returns.
++    func reset() {
++        preferences = .empty
++        hasSeenOnboarding = false
++        defaults.removeObject(forKey: Key.usage)
++        defaults.removeObject(forKey: Key.priority)
++        defaults.removeObject(forKey: Key.seenOnboarding)
++    }
++}
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index ee8c232..56f71b8 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -56,8 +56,11 @@ State pattern: each screen owns `@State var state: Loadable<Payload>` and a
+ `load(force:)` — no view-model layer yet; introduce one when Phase 4 adds
+ persistence and favourites.
+ 
+-## Phase 4 (next)
++## Phase 4
+ 
++- ✅ Settings tab + Tune Radar onboarding (two questions, UserDefaults-only,
++  skippable, editable/resettable; no recommendations yet — answers are
++  reserved for future "Why it matters to you" guidance)
+ - Persistent offline cache (store last good JSON per endpoint on disk)
+ - Saved/favourite models (local only)
+ - Better iPad layout (NavigationSplitView)
+-- 
+2.43.0
+
