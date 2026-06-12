@@ -1,0 +1,62 @@
+From 12856518a57930b7556bd10bdad9a10e09930406 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 22:26:23 +0000
+Subject: [PATCH] Use neutral copy for stale lab names in activity rows
+
+---
+ .../Features/Labs/LabActivityView.swift              | 10 +++++++++-
+ ReleaseModelRadarTests/LabActivityTests.swift        | 12 ++++++++++++
+ 2 files changed, 21 insertions(+), 1 deletion(-)
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabActivityView.swift b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+index 3b02d0a..b3c165b 100644
+--- a/ReleaseModelRadar/Features/Labs/LabActivityView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+@@ -111,6 +111,14 @@ struct LabActivityView: View {
+     }
+ }
+ 
++/// Display copy for activity rows, extracted so it's testable: the raw
++/// stale lab id must never appear as a name, on screen or to VoiceOver.
++enum LabActivityDisplay {
++    static func labName(for lab: Lab?) -> String {
++        lab?.name ?? "Unavailable lab"
++    }
++}
++
+ private struct ActivityRow: View {
+     let activity: LabActivity
+     let lab: Lab?
+@@ -118,7 +126,7 @@ private struct ActivityRow: View {
+     let onAcknowledge: () -> Void
+     let onViewStories: () -> Void
+ 
+-    private var labName: String { lab?.name ?? activity.labID }
++    private var labName: String { LabActivityDisplay.labName(for: lab) }
+ 
+     /// Honest reason line — only the signals actually recorded.
+     private var reasonText: String {
+diff --git a/ReleaseModelRadarTests/LabActivityTests.swift b/ReleaseModelRadarTests/LabActivityTests.swift
+index 2f1d4d0..1a13e56 100644
+--- a/ReleaseModelRadarTests/LabActivityTests.swift
++++ b/ReleaseModelRadarTests/LabActivityTests.swift
+@@ -127,4 +127,16 @@ final class LabActivityTests: XCTestCase {
+         XCTAssertNil(record?.flaggedAt, "migrated flags must not invent a timestamp")
+         XCTAssertEqual(store.newInfoLabIDs, ["anthropic"])
+     }
++
++    /// Phase 10C: an activity row whose lab id no longer resolves must show
++    /// neutral copy — the raw stale id is never a display name, on screen
++    /// or in accessibility labels.
++    func test_activityRowDisplayNameNeverShowsRawStaleID() {
++        XCTAssertEqual(LabActivityDisplay.labName(for: nil), "Unavailable lab")
++        XCTAssertEqual(
++            LabActivityDisplay.labName(for: lab("anthropic", count: 5)),
++            "Anthropic",
++            "resolved labs keep their proper name"
++        )
++    }
+ }
+-- 
+2.43.0
+

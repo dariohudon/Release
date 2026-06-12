@@ -111,6 +111,14 @@ struct LabActivityView: View {
     }
 }
 
+/// Display copy for activity rows, extracted so it's testable: the raw
+/// stale lab id must never appear as a name, on screen or to VoiceOver.
+enum LabActivityDisplay {
+    static func labName(for lab: Lab?) -> String {
+        lab?.name ?? "Unavailable lab"
+    }
+}
+
 private struct ActivityRow: View {
     let activity: LabActivity
     let lab: Lab?
@@ -118,7 +126,7 @@ private struct ActivityRow: View {
     let onAcknowledge: () -> Void
     let onViewStories: () -> Void
 
-    private var labName: String { lab?.name ?? activity.labID }
+    private var labName: String { LabActivityDisplay.labName(for: lab) }
 
     /// Honest reason line — only the signals actually recorded.
     private var reasonText: String {
