@@ -1,0 +1,360 @@
+From e5628b717c3cee2001ff8789d837f052d0df2753 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 21:37:06 +0000
+Subject: [PATCH] Add favourite-lab For You news section and filter
+
+---
+ .../Features/News/FavoriteLabNews.swift       |  63 ++++++++
+ .../Features/News/NewsView.swift              | 142 ++++++++++++++++--
+ .../FavoriteLabNewsTests.swift                |  78 ++++++++++
+ 3 files changed, 274 insertions(+), 9 deletions(-)
+ create mode 100644 ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+ create mode 100644 ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+
+diff --git a/ReleaseModelRadar/Features/News/FavoriteLabNews.swift b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+new file mode 100644
+index 0000000..02e53df
+--- /dev/null
++++ b/ReleaseModelRadar/Features/News/FavoriteLabNews.swift
+@@ -0,0 +1,63 @@
++import Foundation
++
++/* Phase 10B — favourite-lab news selection.
++
++   Pure, local-only logic deciding what the News tab's "For You" surface
++   shows: recent stories from labs the user has starred. Matching uses the
++   API's stable lab id (`NewsItem.lab`) — the exact key favourites and Lab
++   Activity already use — so association is confident; there is no fuzzy
++   name matching, and stories whose lab id isn't favourited are never
++   included.
++
++   Items are kept in their API order, which is newest-first (the same
++   invariant LabFavoritesStore.recordNewsSnapshot relies on), and capped
++   per lab so the surface stays calm.
++
++   Kept separate from the view so a later "Lab Activity → related
++   stories" feature can reuse it (e.g. select(...) with a single lab id). */
++
++enum FavoriteLabNews {
++
++    /// Calm default: at most this many stories per favourited lab.
++    static let perLabLimit = 3
++
++    enum ForYouState: Equatable {
++        /// Nothing starred yet — invite, don't show an empty list.
++        case noFavorites
++        /// Labs are starred but the feed has no stories from them.
++        case noMatches
++        /// Up to `perLabLimit` newest stories per favourited lab.
++        case stories([NewsItem])
++    }
++
++    /// Stories from favourited labs, in API (newest-first) order, capped
++    /// per lab.
++    static func select(
++        from items: [NewsItem],
++        favoriteIDs: Set<String>,
++        perLabLimit: Int = perLabLimit
++    ) -> [NewsItem] {
++        guard !favoriteIDs.isEmpty else { return [] }
++        var counts: [String: Int] = [:]
++        var picked: [NewsItem] = []
++        for item in items where favoriteIDs.contains(item.lab) {
++            let count = counts[item.lab, default: 0]
++            guard count < perLabLimit else { continue }
++            counts[item.lab] = count + 1
++            picked.append(item)
++        }
++        return picked
++    }
++
++    /// The empty-state decision in one place, so the view stays dumb and
++    /// the behaviour stays testable.
++    static func state(
++        items: [NewsItem],
++        favoriteIDs: Set<String>,
++        perLabLimit: Int = perLabLimit
++    ) -> ForYouState {
++        guard !favoriteIDs.isEmpty else { return .noFavorites }
++        let picked = select(from: items, favoriteIDs: favoriteIDs, perLabLimit: perLabLimit)
++        return picked.isEmpty ? .noMatches : .stories(picked)
++    }
++}
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index c31005b..85b7d6a 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -1,11 +1,16 @@
+ import SwiftUI
+ 
+ /// News tab: recent lab announcements from the /api/news feed.
++/// Phase 10B: a "For You" section surfaces recent stories from favourited
++/// labs (capped per lab), and a star toggle filters the tab to favourite
++/// labs only. All News stays fully visible by default; everything is
++/// local — no backend personalization.
+ struct NewsView: View {
+     @EnvironmentObject private var favorites: LabFavoritesStore
+     @State private var state: Loadable<NewsPayload> = .loading
+     @State private var cachedAt: Date?
+     @State private var isCached = false
++    @State private var showFavoritesOnly = false
+ 
+     var body: some View {
+         NavigationStack {
+@@ -13,6 +18,17 @@ struct NewsView: View {
+                 .padReadableWidth() // iPad: readable column for headlines/snippets
+                 .navigationTitle("Lab News")
+                 .background(Theme.bg)
++                .toolbar {
++                    ToolbarItem(placement: .topBarTrailing) {
++                        Button {
++                            showFavoritesOnly.toggle()
++                        } label: {
++                            Image(systemName: showFavoritesOnly ? "star.fill" : "star")
++                                .foregroundStyle(showFavoritesOnly ? Theme.warn : Theme.dim)
++                        }
++                        .accessibilityLabel(showFavoritesOnly ? "Show all news" : "Show favourite labs only")
++                    }
++                }
+         }
+         .task { await load() }
+     }
+@@ -41,6 +57,93 @@ struct NewsView: View {
+             }
+             .background(Theme.bg)
+         case .loaded(let payload):
++            let forYou = FavoriteLabNews.state(items: payload.items, favoriteIDs: favorites.favoriteIDs)
++            if showFavoritesOnly {
++                favoritesOnlyContent(forYou)
++            } else {
++                allNewsList(payload, forYou: forYou)
++            }
++        }
++    }
++
++    /// Default view: "For You" on top, the full feed below — unchanged
++    /// and never hidden.
++    private func allNewsList(_ payload: NewsPayload, forYou: FavoriteLabNews.ForYouState) -> some View {
++        List {
++            if isCached {
++                Section {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                }
++            }
++            if let failed = payload.failedLabs, !failed.isEmpty {
++                Section {
++                    Text("Unreachable right now: \(failed.joined(separator: ", "))")
++                        .font(.system(size: 11, design: .monospaced))
++                        .foregroundStyle(Theme.warn)
++                        .listRowBackground(Theme.warn.opacity(0.08))
++                }
++            }
++            Section {
++                switch forYou {
++                case .noFavorites:
++                    Text("Star a lab to see its latest stories here.")
++                        .font(.system(size: 12.5))
++                        .foregroundStyle(Theme.muted)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                case .noMatches:
++                    Text("No recent stories from your favourite labs.")
++                        .font(.system(size: 12.5))
++                        .foregroundStyle(Theme.muted)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparator(.hidden)
++                case .stories(let items):
++                    ForEach(items) { item in
++                        NewsRow(item: item)
++                            .listRowBackground(Theme.panel)
++                            .listRowSeparatorTint(Theme.line)
++                    }
++                }
++            } header: {
++                forYouHeader
++            }
++            Section {
++                ForEach(payload.items) { item in
++                    NewsRow(item: item)
++                        .listRowBackground(Theme.panel)
++                        .listRowSeparatorTint(Theme.line)
++                }
++            } header: {
++                Text("ALL NEWS")
++                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
++                    .tracking(1.2)
++                    .foregroundStyle(Theme.ink)
++            }
++        }
++        .radarListStyle()
++        .refreshable { await load(force: true) }
++    }
++
++    /// Star-filtered view: favourite-lab stories only, with honest empty
++    /// states instead of an empty list.
++    @ViewBuilder
++    private func favoritesOnlyContent(_ forYou: FavoriteLabNews.ForYouState) -> some View {
++        switch forYou {
++        case .noFavorites:
++            cachedAwareEmptyState(
++                icon: "star",
++                title: "No favourite labs yet",
++                message: "Star a lab to see its latest stories here."
++            )
++        case .noMatches:
++            cachedAwareEmptyState(
++                icon: "newspaper",
++                title: "Nothing new from your labs",
++                message: "No recent stories from your favourite labs."
++            )
++        case .stories(let items):
+             List {
+                 if isCached {
+                     Section {
+@@ -49,20 +152,14 @@ struct NewsView: View {
+                             .listRowSeparator(.hidden)
+                     }
+                 }
+-                if let failed = payload.failedLabs, !failed.isEmpty {
+-                    Section {
+-                        Text("Unreachable right now: \(failed.joined(separator: ", "))")
+-                            .font(.system(size: 11, design: .monospaced))
+-                            .foregroundStyle(Theme.warn)
+-                            .listRowBackground(Theme.warn.opacity(0.08))
+-                    }
+-                }
+                 Section {
+-                    ForEach(payload.items) { item in
++                    ForEach(items) { item in
+                         NewsRow(item: item)
+                             .listRowBackground(Theme.panel)
+                             .listRowSeparatorTint(Theme.line)
+                     }
++                } header: {
++                    forYouHeader
+                 }
+             }
+             .radarListStyle()
+@@ -70,6 +167,33 @@ struct NewsView: View {
+         }
+     }
+ 
++    private var forYouHeader: some View {
++        VStack(alignment: .leading, spacing: 2) {
++            Text("FOR YOU")
++                .font(.system(size: 13, weight: .semibold, design: .monospaced))
++                .tracking(1.2)
++                .foregroundStyle(Theme.ink)
++            Text("Recent stories from labs you follow.")
++                .font(.system(size: 11))
++                .foregroundStyle(Theme.muted)
++                .textCase(nil)
++        }
++    }
++
++    /// Empty state that still surfaces the offline notice when the data
++    /// behind it came from cache.
++    private func cachedAwareEmptyState(icon: String, title: String, message: String) -> some View {
++        VStack(spacing: 0) {
++            if isCached {
++                CachedDataNotice(savedAt: cachedAt)
++                    .padding(.horizontal, 16)
++                    .padding(.top, 12)
++            }
++            EmptyStateView(icon: icon, title: title, message: message)
++        }
++        .background(Theme.bg)
++    }
++
+     private func load(force: Bool = false) async {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+diff --git a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+new file mode 100644
+index 0000000..9d727df
+--- /dev/null
++++ b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+@@ -0,0 +1,78 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++final class FavoriteLabNewsTests: XCTestCase {
++
++    private func item(_ lab: String, _ index: Int) -> NewsItem {
++        NewsItem(
++            id: "\(lab)-\(index)", lab: lab, labName: lab.capitalized,
++            title: "\(lab) story \(index)", url: "https://example.com",
++            source: "Official", sourceType: "official",
++            publishedAt: nil, snippet: nil
++        )
++    }
++
++    /// A feed in API (newest-first) order: anthropic and openai interleaved
++    /// with 4 stories each, plus a never-favourited lab.
++    private var feed: [NewsItem] {
++        (0..<4).flatMap { i in
++            [item("anthropic", i), item("openai", i), item("mistral", i)]
++        }
++    }
++
++    // ── Filtering ─────────────────────────────────────────────────────────────
++
++    func test_onlyFavouritedLabStoriesAreSelected() {
++        let picked = FavoriteLabNews.select(from: feed, favoriteIDs: ["anthropic"])
++        XCTAssertFalse(picked.isEmpty)
++        XCTAssertTrue(picked.allSatisfy { $0.lab == "anthropic" },
++                      "stories are matched by stable lab id only")
++    }
++
++    func test_noFavoritesSelectsNothing() {
++        XCTAssertTrue(FavoriteLabNews.select(from: feed, favoriteIDs: []).isEmpty)
++    }
++
++    // ── Per-lab cap ───────────────────────────────────────────────────────────
++
++    func test_capsAtThreeStoriesPerLab() {
++        let picked = FavoriteLabNews.select(from: feed, favoriteIDs: ["anthropic"])
++        XCTAssertEqual(picked.count, 3, "the 4th story is dropped")
++        XCTAssertEqual(picked.map(\.id), ["anthropic-0", "anthropic-1", "anthropic-2"],
++                       "the NEWEST three survive, in feed order")
++    }
++
++    func test_capAppliesPerLabAcrossMultipleFavourites() {
++        let picked = FavoriteLabNews.select(from: feed, favoriteIDs: ["anthropic", "openai"])
++        XCTAssertEqual(picked.count, 6)
++        XCTAssertEqual(picked.filter { $0.lab == "anthropic" }.count, 3)
++        XCTAssertEqual(picked.filter { $0.lab == "openai" }.count, 3)
++    }
++
++    func test_feedOrderIsPreserved() {
++        let picked = FavoriteLabNews.select(from: feed, favoriteIDs: ["anthropic", "openai"])
++        let expected = ["anthropic-0", "openai-0", "anthropic-1", "openai-1", "anthropic-2", "openai-2"]
++        XCTAssertEqual(picked.map(\.id), expected,
++                       "newest-first API order is kept; no re-sorting")
++    }
++
++    // ── Empty-state decisions ─────────────────────────────────────────────────
++
++    func test_stateIsNoFavoritesWhenNothingStarred() {
++        XCTAssertEqual(FavoriteLabNews.state(items: feed, favoriteIDs: []), .noFavorites)
++    }
++
++    func test_stateIsNoMatchesWhenStarredLabsHaveNoStories() {
++        XCTAssertEqual(FavoriteLabNews.state(items: feed, favoriteIDs: ["deepseek"]), .noMatches)
++        XCTAssertEqual(FavoriteLabNews.state(items: [], favoriteIDs: ["anthropic"]), .noMatches)
++    }
++
++    func test_stateCarriesCappedStories() {
++        let state = FavoriteLabNews.state(items: feed, favoriteIDs: ["mistral"])
++        guard case .stories(let items) = state else {
++            return XCTFail("expected stories, got \(state)")
++        }
++        XCTAssertEqual(items.count, 3)
++        XCTAssertTrue(items.allSatisfy { $0.lab == "mistral" })
++    }
++}
+-- 
+2.43.0
+
