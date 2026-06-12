@@ -1,0 +1,102 @@
+From 68eca736fc9444a3b51d7f3e0db50113ddc48ffc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 17:44:11 +0000
+Subject: [PATCH] Use Today heading on the main screen
+
+---
+ .../Features/Models/ModelsView.swift          | 17 +++++++++++++---
+ docs/app-store-readiness.md                   | 20 +++++++++++++++----
+ 2 files changed, 30 insertions(+), 7 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index 612f025..8fc67a8 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -38,11 +38,14 @@ struct ModelsView: View {
+         .task { await load() }
+     }
+ 
+-    /// The original iPhone flow — unchanged.
++    /// The original iPhone flow — unchanged structurally; the heading is
++    /// "Today" (Phase 10A): inside the app we lead with what the user is
++    /// doing. The product name stays on identity surfaces (About, widget,
++    /// notification title).
+     private var stackLayout: some View {
+         NavigationStack(path: $path) {
+             content
+-                .navigationTitle("Release Model Radar")
++                .navigationTitle("Today")
+                 .navigationBarTitleDisplayMode(.large)
+                 .toolbar {
+                     ToolbarItem(placement: .topBarTrailing) { StatusBadgeView() }
+@@ -57,7 +60,7 @@ struct ModelsView: View {
+     private var splitLayout: some View {
+         NavigationSplitView {
+             content
+-                .navigationTitle("Release Model Radar")
++                .navigationTitle("Today")
+                 .navigationBarTitleDisplayMode(.large)
+                 .toolbar {
+                     ToolbarItem(placement: .topBarTrailing) { StatusBadgeView() }
+@@ -112,6 +115,14 @@ struct ModelsView: View {
+             .background(Theme.bg)
+         case .loaded(let payload):
+             List {
++                // One quiet line under "Today" so the heading stays meaningful.
++                Section {
++                    Text("A calm view of what changed across major AI labs.")
++                        .font(.system(size: 12.5))
++                        .foregroundStyle(Theme.muted)
++                        .listRowBackground(Color.clear)
++                        .listRowSeparator(.hidden)
++                }
+                 if isCached {
+                     Section {
+                         CachedDataNotice(savedAt: cachedAt)
+diff --git a/docs/app-store-readiness.md b/docs/app-store-readiness.md
+index 372c7e4..0d120ab 100644
+--- a/docs/app-store-readiness.md
++++ b/docs/app-store-readiness.md
+@@ -14,8 +14,12 @@ and TestFlight review. Everything below reflects the code as of
+   read-only Release Model Radar API at `release.brightening.ca`. The
+   web/API project is the source of truth; the app never owns or edits the
+   catalog.
+-- Tabs: Radar (timeline + curated model list + detail), Labs (favourites,
+-  Lab Activity), Definitions (searchable glossary), News, Settings.
++- Tabs: Radar — in-app heading "Today" (timeline + curated model list +
++  detail), Labs (favourites, Lab Activity), Definitions (searchable
++  glossary), News, Settings. Inside the app the main screen leads with
++  what the user is doing ("Today"); the product name appears on identity
++  surfaces (About, widget, notification title). The product is NOT
++  renamed.
+ - Three guidance layers: USE/WATCH/IGNORE (public, never personalized),
+   USEFUL FOR (public reasoning), WHY IT MATTERS TO YOU (computed on
+   device from Tune Radar answers).
+@@ -186,7 +190,7 @@ stack is confirmed and written down.
+   Claude, GPT, Gemini, open weights; positioned as a free, no-account,
+   privacy-clean utility for people who need to keep up without reading
+   everything.
+-- **Screenshot list:** 1) Radar list + timeline, 2) model detail showing
++- **Screenshot list:** 1) "Today" screen — timeline + model list, 2) model detail showing
+   the three guidance layers, 3) Labs with favourites + Lab Activity
+   sheet, 4) Definitions search, 5) News, 6) Settings (Tune Radar +
+   reminder), 7) iPad split layout, 8) widget on home screen.
+@@ -201,6 +205,14 @@ stack is confirmed and written down.
+ - Save/share a news item.
+ - Optional: notification tap routes to the Radar tab.
+ - Light appearance via semantic tokens (app is intentionally dark-only
+-  for v1).
++  for v1). What a future light pass must address, per the Phase 10A
++  audit: (1) `Theme.*` is hard-coded hex mirroring the web palette —
++  introduce a semantic token layer (background/surface/label tiers)
++  mapped per scheme; (2) remove the forced
++  `.preferredColorScheme(.dark)` at the app root and in sheet/cover
++  presentations; (3) the widget duplicates the palette in `WidgetTheme`
++  and needs the same mapping. Until all three happen together,
++  system-light chrome over the hard-coded dark surfaces would render
++  broken, so the forced dark scheme stays.
+ - Localization beyond English.
+ - App Store asset production (icon variants, marketing screenshots).
+-- 
+2.43.0
+
