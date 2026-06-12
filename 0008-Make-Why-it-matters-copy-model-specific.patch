@@ -1,0 +1,244 @@
+From 47e16cb57ab8d2e313e69aaec3cb2023473f5a18 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 05:01:52 +0000
+Subject: [PATCH] Make Why it matters to you copy model-specific
+
+---
+ .../TuneRadar/TuneRadarRecommendation.swift   | 178 +++++++++++++++---
+ 1 file changed, 151 insertions(+), 27 deletions(-)
+
+diff --git a/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift b/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
+index f8c7866..a2111b0 100644
+--- a/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
++++ b/ReleaseModelRadar/TuneRadar/TuneRadarRecommendation.swift
+@@ -2,11 +2,16 @@ import Foundation
+ 
+ /* "Why it matters to you" — the personalized layer.
+ 
+-   A small, transparent, fully on-device mapping from (model fields ×
+-   Tune Radar answers) to one hedged sentence. No network, no analytics,
+-   no inference beyond the two choices the user made in onboarding/Settings.
+-   "Useful for" remains the generic public guidance; this layer only ever
+-   adds a personal lens on top of it. */
++   Deterministic, fully on-device template selection: the user's two Tune
++   Radar answers are matched against the model's PUBLIC fields, and the
++   sentence quotes the strongest concrete evidence (a strength, the tier,
++   pricing, speed, open weights) plus one honest caveat. No network, no
++   analytics, no inference beyond the two choices the user made.
++
++   Product hierarchy (unchanged):
++   - use/watch/ignore  = quick public usefulness label (never personalized)
++   - "Useful for"      = generic public reasoning
++   - this layer        = personal lens on top, 1–2 hedged sentences */
+ 
+ enum TuneRadarRecommendation {
+ 
+@@ -18,7 +23,7 @@ enum TuneRadarRecommendation {
+     }
+ 
+     /// Returns nil when preferences are incomplete (skipped onboarding,
+-    /// after reset) — the UI then shows nothing or a gentle Settings prompt.
++    /// after reset) — the UI then shows the gentle Settings prompt.
+     static func explanation(for model: RadarModel, preferences: TuneRadarPreferences) -> Explanation? {
+         guard let usage = preferences.usage, let priority = preferences.priority else {
+             return nil
+@@ -30,19 +35,25 @@ enum TuneRadarRecommendation {
+         let text: String
+         switch (usageHit, priorityHit) {
+         case (true, true):
+-            text = "Because you selected \(usage.label) and \(priority.label), this release may be worth watching — both show up in what it's known for."
++            text = "Because you care about \(usageNoun(usage)) and \(priorityNoun(priority)), "
++                + "\(model.name) stands out for \(usageEvidence(usage, model)), plus \(priorityEvidence(priority, model)). "
++                + caveat(for: model)
+         case (true, false):
+-            text = "Because you selected \(usage.label), this release may be relevant to how you use AI — though it isn't an obvious match for \(priority.label.lowercased())."
++            text = "Because you care about \(usageNoun(usage)), \(model.name) is relevant for \(usageEvidence(usage, model)). "
++                + "It's a weaker fit for \(priorityNoun(priority)) — \(priorityMiss(priority, model))."
+         case (false, true):
+-            text = "This release lines up with \(priority.label.lowercased()) from your Tune Radar answers, though \(usageDescription(usage)) isn't its obvious focus."
++            text = "For \(priorityNoun(priority)), \(model.name) offers \(priorityEvidence(priority, model)) — "
++                + "though its focus is \(focusSummary(model)) rather than \(usageNoun(usage)). "
++                + caveat(for: model)
+         case (false, false):
+-            text = "Based on your Tune Radar answers (\(usage.label), \(priority.label)), this release doesn't obviously match your focus — fine to skim."
++            text = "\(model.name) sits outside your focus (\(usageNoun(usage)), \(priorityNoun(priority))) — "
++                + "it centres on \(focusSummary(model)). Worth knowing about, not an obvious fit."
+         }
+ 
+         return Explanation(text: text, matchesSomething: usageHit || priorityHit)
+     }
+ 
+-    // ── Matching (simple, inspectable keyword checks) ─────────────────────────
++    // ── Matching (unchanged keyword checks — simple and inspectable) ──────────
+ 
+     private static func haystack(_ model: RadarModel) -> String {
+         ([model.tags.joined(separator: " "), model.bestAt, model.useFor, model.tier]
+@@ -51,22 +62,22 @@ enum TuneRadarRecommendation {
+             .lowercased()
+     }
+ 
+-    private static func usageMatches(_ usage: UsageFocus, _ model: RadarModel) -> Bool {
+-        let text = haystack(model)
++    private static func usageKeywords(_ usage: UsageFocus) -> [String] {
+         switch usage {
+-        case .writing:
+-            return ["creative", "writing", "copy", "narrative", "draft"].contains(where: text.contains)
+-        case .coding:
+-            return ["coding", "code", "debug", "refactor", "engineering"].contains(where: text.contains)
+-        case .research:
+-            return ["reasoning", "research", "analysis", "math", "knowledge"].contains(where: text.contains)
+-        case .automation:
+-            return ["agent", "automation", "tool", "autonomous", "workflow"].contains(where: text.contains)
+-        case .everything:
+-            return true
++        case .writing: return ["creative", "writing", "copy", "narrative", "draft"]
++        case .coding: return ["coding", "code", "debug", "refactor", "engineering"]
++        case .research: return ["reasoning", "research", "analysis", "math", "knowledge"]
++        case .automation: return ["agent", "automation", "tool", "autonomous", "workflow"]
++        case .everything: return []
+         }
+     }
+ 
++    private static func usageMatches(_ usage: UsageFocus, _ model: RadarModel) -> Bool {
++        if usage == .everything { return true }
++        let text = haystack(model)
++        return usageKeywords(usage).contains(where: text.contains)
++    }
++
+     private static func priorityMatches(_ priority: RadarPriority, _ model: RadarModel) -> Bool {
+         let text = haystack(model)
+         switch priority {
+@@ -84,13 +95,126 @@ enum TuneRadarRecommendation {
+         }
+     }
+ 
+-    private static func usageDescription(_ usage: UsageFocus) -> String {
++    // ── Evidence (model-specific fragments quoted into the sentence) ─────────
++
++    private static func usageEvidence(_ usage: UsageFocus, _ model: RadarModel) -> String {
++        if usage == .everything {
++            return lowercasedFirst(clip(model.bestAt))
++        }
++        let keywords = usageKeywords(usage)
++        if let strength = model.strengths.first(where: { s in
++            keywords.contains(where: s.lowercased().contains)
++        }) {
++            return "strengths like \u{201C}\(clip(strength))\u{201D}"
++        }
++        if keywords.contains(where: model.bestAt.lowercased().contains) {
++            return lowercasedFirst(clip(model.bestAt))
++        }
++        return lowercasedFirst(clip(model.useFor))
++    }
++
++    private static func priorityEvidence(_ priority: RadarPriority, _ model: RadarModel) -> String {
++        switch priority {
++        case .quality:
++            let tier = model.tier.lowercased()
++            if tier.contains("flagship") || tier.contains("frontier") {
++                return "its \(clip(tier, 40)) positioning"
++            }
++            if let index = model.index {
++                return "an intelligence index of \(trimmedNumber(index))"
++            }
++            return "its top-tier reputation"
++        case .value:
++            if model.priceIn == "0" {
++                return "being free to self-host"
++            }
++            if let price = model.priceLine {
++                return "pricing around \(price)"
++            }
++            if let note = model.priceNote {
++                return lowercasedFirst(clip(note))
++            }
++            return "its value positioning"
++        case .speed:
++            if let speed = model.speed, !speed.isEmpty, speed != "—" {
++                return "a \u{201C}\(lowercasedFirst(speed))\u{201D} speed profile"
++            }
++            return "its small, low-latency design"
++        case .openness:
++            return "open weights you can run or adapt outside closed hosted APIs"
++        }
++    }
++
++    /// Why the model is a weaker fit for the chosen priority — the honest
++    /// counterweight when only the usage focus matched.
++    private static func priorityMiss(_ priority: RadarPriority, _ model: RadarModel) -> String {
++        switch priority {
++        case .quality: return "it isn't positioned as a frontier flagship"
++        case .value: return "price isn't its main draw"
++        case .speed: return "speed isn't what it's known for"
++        case .openness: return "it's closed or API-hosted, so you can't run it yourself"
++        }
++    }
++
++    /// One honest caveat, strongest signal first: horizon status, the public
++    /// ignore label, or the model's own first watch-out.
++    private static func caveat(for model: RadarModel) -> String {
++        if model.status == "horizon" {
++            return "Caveat: it's still on the horizon, so there's nothing to adopt yet."
++        }
++        if model.verdict == "ignore" {
++            return "Caveat: its public label is ignore, so treat this as context rather than a tool to pick up."
++        }
++        if let watchout = model.watchouts.first {
++            return "Caveat: \(lowercasedFirst(clip(watchout)))."
++        }
++        return "As always, weigh it against what you already use."
++    }
++
++    private static func focusSummary(_ model: RadarModel) -> String {
++        lowercasedFirst(clip(model.bestAt, 56))
++    }
++
++    // ── Wording nouns ─────────────────────────────────────────────────────────
++
++    private static func usageNoun(_ usage: UsageFocus) -> String {
+         switch usage {
+-        case .writing: return "writing and creative work"
+-        case .coding: return "coding and building"
++        case .writing: return "writing"
++        case .coding: return "coding"
+         case .research: return "research and analysis"
+         case .automation: return "agents and automation"
+-        case .everything: return "general use"
++        case .everything: return "broad everyday use"
++        }
++    }
++
++    private static func priorityNoun(_ priority: RadarPriority) -> String {
++        switch priority {
++        case .quality: return "top quality"
++        case .value: return "price and value"
++        case .speed: return "speed"
++        case .openness: return "privacy and open weights"
+         }
+     }
++
++    // ── Small string helpers ──────────────────────────────────────────────────
++
++    private static func clip(_ s: String, _ max: Int = 64) -> String {
++        var t = s.trimmingCharacters(in: .whitespacesAndNewlines)
++        if t.hasSuffix(".") { t = String(t.dropLast()) }
++        guard t.count > max else { return t }
++        var head = String(t.prefix(max))
++        if let lastSpace = head.lastIndex(of: " ") {
++            head = String(head[..<lastSpace]) // never cut mid-word
++        }
++        return head.trimmingCharacters(in: .whitespaces) + "…"
++    }
++
++    private static func lowercasedFirst(_ s: String) -> String {
++        guard let first = s.first else { return s }
++        return first.lowercased() + s.dropFirst()
++    }
++
++    private static func trimmedNumber(_ value: Double) -> String {
++        value.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(value)) : String(value)
++    }
+ }
+-- 
+2.43.0
+
