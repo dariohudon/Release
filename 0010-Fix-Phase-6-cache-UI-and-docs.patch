@@ -1,0 +1,236 @@
+From 353c827c5d8cc5a8b29a2b3e9019834233269c67 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 06:30:25 +0000
+Subject: [PATCH] Fix Phase 6 cache UI and docs
+
+---
+ README.md                                     | 18 ++++++++----
+ .../Features/Labs/LabsView.swift              | 28 ++++++++++++++++---
+ .../Features/Models/ModelsView.swift          | 21 ++++++++++----
+ .../Features/News/NewsView.swift              | 21 ++++++++++----
+ docs/ios-mvp-plan.md                          | 17 ++++++-----
+ 5 files changed, 77 insertions(+), 28 deletions(-)
+
+diff --git a/README.md b/README.md
+index e8ba73d..ba97742 100644
+--- a/README.md
++++ b/README.md
+@@ -11,7 +11,7 @@ on the next fetch.
+ | Tab | What it does |
+ |---|---|
+ | **Radar** | Release timeline (lab-colored dots, today marker, tap-to-detail) and the model list grouped by release state — Just shipped / Live now / On the horizon — with at-a-glance usefulness pills. Tap a model for the full detail screen: specs, strengths, watch-outs, guidance, community signal, lab link. |
+-| **Labs** | Every tracked lab with its color and model count. |
++| **Labs** | Every tracked lab with its color and model count. Star a lab to favourite it (stored on device); a favourites filter and an in-app “New info” dot show when a favourited lab's public data changed since your last refresh. |
+ | **Definitions** | Searchable plain-English glossary of model-release language; tap a term to expand. |
+ | **News** | Recent lab announcements, newest first, with official vs news-search source tags. |
+ | **Settings** | Tune Radar preferences (view, edit, reset) and app info. |
+@@ -39,6 +39,13 @@ later in Settings.
+   personalization, no analytics, no tracking.
+ - The app is read-only: it has no mutation routes and cannot change
+   anything upstream.
++- Lab favourites are stored locally and never synced to a server.
++- The app keeps the last successful API responses on device so it still
++  works offline, with a gentle “Offline — last updated …” notice. The
++  cache holds only public data and never overwrites good data with a
++  failed request.
++- New-info indicators are in-app only — no system notifications, and the
++  app never requests notification permissions.
+ 
+ ## Development status
+ 
+@@ -46,16 +53,17 @@ later in Settings.
+ 
+ - Phase 3 — iOS MVP baseline (`mvp-ios-phase-3-lock`)
+ - Phase 4 — Tune Radar onboarding & settings (`phase-4-tune-radar-settings-lock`)
++- Phase 5 — Personalized recommendation layer (`phase-5-personalized-recommendation-lock`)
+ 
+ **In review**
+ 
+-- Phase 5 — Personalized recommendation layer ("Why it matters to you") —
+-  implemented on `ios-personalized-recommendation-layer`, awaiting review
+-  before merge/lock.
++- Phase 6 — Persistent offline cache + lab favourites with in-app
++  new-info indicators — implemented on `ios-offline-cache-lab-favourites`,
++  awaiting review before merge/lock.
++
+ 
+ **Future**
+ 
+-- Phase 6 — Persistent offline cache + favourites
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — Widgets + daily check notifications
+ - Phase 9 — App Store / TestFlight readiness
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index a8e56b2..56269d8 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -40,7 +40,7 @@ struct LabsView: View {
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
+         case .loaded(let payload) where payload.labs.isEmpty:
+-            EmptyStateView(
++            cachedAwareEmptyState(
+                 icon: "building.2",
+                 title: "No labs available",
+                 message: "Lab data may be temporarily unavailable.",
+@@ -52,10 +52,11 @@ struct LabsView: View {
+                 : payload.labs
+ 
+             if visible.isEmpty {
+-                EmptyStateView(
++                cachedAwareEmptyState(
+                     icon: "star",
+                     title: "No favourite labs yet",
+-                    message: "Tap the star on a lab to follow it. A dot appears here when a favourited lab has new info."
++                    message: "Tap the star on a lab to follow it. A dot appears here when a favourited lab has new info.",
++                    retry: nil
+                 )
+             } else {
+                 List {
+@@ -83,6 +84,21 @@ struct LabsView: View {
+         }
+     }
+ 
++    /// Empty state that still surfaces the offline notice when the (empty)
++    /// payload came from cache.
++    @ViewBuilder
++    private func cachedAwareEmptyState(icon: String, title: String, message: String, retry: (() -> Void)?) -> some View {
++        VStack(spacing: 0) {
++            if isCached {
++                CachedDataNotice(savedAt: cachedAt)
++                    .padding(.horizontal, 16)
++                    .padding(.top, 12)
++            }
++            EmptyStateView(icon: icon, title: title, message: message, retry: retry)
++        }
++        .background(Theme.bg)
++    }
++
+     private func load(force: Bool = false) async {
+         if !force, case .loaded = state { return }
+         if force { state = .loading }
+@@ -131,10 +147,14 @@ struct LabRow: View {
+                 Image(systemName: isFavorite ? "star.fill" : "star")
+                     .font(.system(size: 15))
+                     .foregroundStyle(isFavorite ? Theme.warn : Theme.dim)
+-                    .frame(width: 34, height: 34)
++                    .frame(width: 44, height: 44) // HIG-minimum hit target; icon stays 15pt
+                     .contentShape(Rectangle())
+             }
+             .buttonStyle(.plain)
++            // Cancel most of the 44pt frame's footprint so the row stays slim;
++            // the hit area is unaffected.
++            .padding(.vertical, -8)
++            .padding(.trailing, -5)
+             .accessibilityLabel(isFavorite ? "Unfavourite \(lab.name)" : "Favourite \(lab.name)")
+         }
+         .padding(.vertical, 4)
+diff --git a/ReleaseModelRadar/Features/Models/ModelsView.swift b/ReleaseModelRadar/Features/Models/ModelsView.swift
+index e370dad..9df66de 100644
+--- a/ReleaseModelRadar/Features/Models/ModelsView.swift
++++ b/ReleaseModelRadar/Features/Models/ModelsView.swift
+@@ -32,12 +32,21 @@ struct ModelsView: View {
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
+         case .loaded(let payload) where payload.models.isEmpty:
+-            EmptyStateView(
+-                icon: "dot.radiowaves.left.and.right",
+-                title: "No models available",
+-                message: "The catalog is curated and may be temporarily unavailable.",
+-                retry: { Task { await load(force: true) } }
+-            )
++            // Even an empty cached payload should say it's cached.
++            VStack(spacing: 0) {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .padding(.horizontal, 16)
++                        .padding(.top, 12)
++                }
++                EmptyStateView(
++                    icon: "dot.radiowaves.left.and.right",
++                    title: "No models available",
++                    message: "The catalog is curated and may be temporarily unavailable.",
++                    retry: { Task { await load(force: true) } }
++                )
++            }
++            .background(Theme.bg)
+         case .loaded(let payload):
+             List {
+                 if isCached {
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index 4be9b0e..df0f455 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -24,12 +24,21 @@ struct NewsView: View {
+         case .failed(let message):
+             ErrorView(message: message) { Task { await load(force: true) } }
+         case .loaded(let payload) where payload.items.isEmpty:
+-            EmptyStateView(
+-                icon: "newspaper",
+-                title: "No news available",
+-                message: "Check back after the next radar update.",
+-                retry: { Task { await load(force: true) } }
+-            )
++            // Even an empty cached payload should say it's cached.
++            VStack(spacing: 0) {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .padding(.horizontal, 16)
++                        .padding(.top, 12)
++                }
++                EmptyStateView(
++                    icon: "newspaper",
++                    title: "No news available",
++                    message: "Check back after the next radar update.",
++                    retry: { Task { await load(force: true) } }
++                )
++            }
++            .background(Theme.bg)
+         case .loaded(let payload):
+             List {
+                 if isCached {
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index 5c5bf25..be05c1f 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -53,8 +53,8 @@ ReleaseModelRadar/
+ ```
+ 
+ State pattern: each screen owns `@State var state: Loadable<Payload>` and a
+-`load(force:)` — no view-model layer yet; introduce one when Phase 6 adds
+-persistence and favourites.
++`load(force:)` — no view-model layer yet; introduce one if a
++later phase genuinely needs it.
+ 
+ ## Roadmap
+ 
+@@ -62,10 +62,13 @@ persistence and favourites.
+ - Phase 4 — ✅ locked: Settings tab + Tune Radar onboarding
+   (`phase-4-tune-radar-settings-lock`); two questions, UserDefaults-only,
+   skippable, editable/resettable
+-- Phase 5 — in review: personalized "Why it matters to you" layer
+-  (`TuneRadarRecommendation.swift`), computed on device from the Tune Radar
+-  answers; no backend, no analytics
+-- Phase 6 — persistent offline cache + favourites (local only)
++- Phase 5 — ✅ locked: personalized "Why it matters to you" layer
++  (`phase-5-personalized-recommendation-lock`)
++- Phase 6 — in review: persistent offline cache (last-good responses on
++  disk via `LocalAPIResponseCache`, written only after successful decode,
++  gentle "Offline — last updated …" notices) + lab favourites with in-app
++  new-info indicators (`LabFavoritesStore`, UserDefaults-only, no
++  notifications, no permissions, no sync)
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+@@ -76,7 +79,7 @@ The app intentionally sets `.preferredColorScheme(.dark)`: every design
+ token mirrors the web app's dark navy palette, and system-light chrome over
+ those hardcoded surfaces would render broken (dark text on dark panels).
+ Honouring the system appearance properly means a semantic/light token set —
+-a deliberate Phase 6+ task, not a quick toggle.
++a deliberate later-phase task, not a quick toggle.
+ 
+ ## Release status
+ 
+-- 
+2.43.0
+
