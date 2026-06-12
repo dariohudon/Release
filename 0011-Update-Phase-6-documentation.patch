@@ -1,0 +1,64 @@
+From 8d9000f4deaae46bc54c97cc9ed345c53b32f224 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 06:43:04 +0000
+Subject: [PATCH] Update Phase 6 documentation
+
+---
+ README.md            | 10 +++++++---
+ docs/ios-mvp-plan.md | 12 +++++++-----
+ 2 files changed, 14 insertions(+), 8 deletions(-)
+
+diff --git a/README.md b/README.md
+index ba97742..475e9fb 100644
+--- a/README.md
++++ b/README.md
+@@ -21,6 +21,11 @@ upstream radar last checked its sources, and a first-launch **Tune Radar
+ onboarding** — two quick questions, fully skippable, editable or resettable
+ later in Settings.
+ 
++The app keeps the **last successful response for every endpoint on device**,
++so Radar, Labs, Definitions, and News still render without a connection — a
++gentle "Offline — last updated …" notice appears whenever cached data is
++being shown (even when the cached list is empty).
++
+ ## The three guidance layers
+ 
+ | Layer | Where | Meaning |
+@@ -58,9 +63,8 @@ later in Settings.
+ **In review**
+ 
+ - Phase 6 — Persistent offline cache + lab favourites with in-app
+-  new-info indicators — implemented on `ios-offline-cache-lab-favourites`,
+-  awaiting review before merge/lock.
+-
++  new-info indicators — implemented on `ios-offline-cache-lab-favourites`;
++  code review passed, awaiting final manual QA before merge/lock.
+ 
+ **Future**
+ 
+diff --git a/docs/ios-mvp-plan.md b/docs/ios-mvp-plan.md
+index be05c1f..7521120 100644
+--- a/docs/ios-mvp-plan.md
++++ b/docs/ios-mvp-plan.md
+@@ -64,11 +64,13 @@ later phase genuinely needs it.
+   skippable, editable/resettable
+ - Phase 5 — ✅ locked: personalized "Why it matters to you" layer
+   (`phase-5-personalized-recommendation-lock`)
+-- Phase 6 — in review: persistent offline cache (last-good responses on
+-  disk via `LocalAPIResponseCache`, written only after successful decode,
+-  gentle "Offline — last updated …" notices) + lab favourites with in-app
+-  new-info indicators (`LabFavoritesStore`, UserDefaults-only, no
+-  notifications, no permissions, no sync)
++- Phase 6 — implemented, code review passed, awaiting final manual QA +
++  lock: persistent offline cache (last-good responses on disk via
++  `LocalAPIResponseCache`, written only after successful decode, gentle
++  "Offline — last updated …" notices even for empty cached payloads) +
++  lab favourites with in-app new-info indicators (`LabFavoritesStore`,
++  UserDefaults-only, no system notifications, no permission prompts,
++  no backend sync)
+ - Phase 7 — iPad polish / NavigationSplitView
+ - Phase 8 — widgets + daily check notifications (poll `/api/update-status`)
+ - Phase 9 — App Store / TestFlight readiness
+-- 
+2.43.0
+
