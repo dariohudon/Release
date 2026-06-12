@@ -1,0 +1,215 @@
+From b960327e51a6797508f5ba5a5c0657555cc9a4b7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 12 Jun 2026 08:25:21 +0000
+Subject: [PATCH] Fix Phase 6C activity blockers
+
+---
+ .../Features/Labs/LabActivityView.swift       | 85 +++++++++++--------
+ .../Features/Labs/LabsView.swift              | 58 ++++++++-----
+ 2 files changed, 87 insertions(+), 56 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/Labs/LabActivityView.swift b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+index a22cbb7..abfb8a6 100644
+--- a/ReleaseModelRadar/Features/Labs/LabActivityView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabActivityView.swift
+@@ -48,11 +48,19 @@ struct LabActivityView: View {
+     @ViewBuilder
+     private var content: some View {
+         if favorites.favoriteIDs.isEmpty {
+-            EmptyStateView(
+-                icon: "star",
+-                title: "No favourite labs yet",
+-                message: "Star a lab in the Labs list to follow it. Activity from favourited labs shows up here."
+-            )
++            VStack(spacing: 0) {
++                if isCached {
++                    CachedDataNotice(savedAt: cachedAt)
++                        .padding(.horizontal, 16)
++                        .padding(.top, 12)
++                }
++                EmptyStateView(
++                    icon: "star",
++                    title: "No favourite labs yet",
++                    message: "Star a lab in the Labs list to follow it. Activity from favourited labs shows up here."
++                )
++            }
++            .background(Theme.bg)
+         } else if entries.isEmpty {
+             VStack(spacing: 0) {
+                 if isCached {
+@@ -78,13 +86,12 @@ struct LabActivityView: View {
+                     ActivityRow(
+                         activity: entry.activity,
+                         lab: entry.lab,
++                        onOpen: {
++                            onSelect(entry.activity.labID)
++                            dismiss()
++                        },
+                         onAcknowledge: { favorites.clearNewInfo(for: entry.activity.labID) }
+                     )
+-                    .contentShape(Rectangle())
+-                    .onTapGesture {
+-                        onSelect(entry.activity.labID)
+-                        dismiss()
+-                    }
+                     .listRowBackground(Theme.panel)
+                     .listRowSeparatorTint(Theme.line)
+                 }
+@@ -98,6 +105,7 @@ struct LabActivityView: View {
+ private struct ActivityRow: View {
+     let activity: LabActivity
+     let lab: Lab?
++    let onOpen: () -> Void
+     let onAcknowledge: () -> Void
+ 
+     private var labName: String { lab?.name ?? activity.labID }
+@@ -115,27 +123,41 @@ private struct ActivityRow: View {
+     }
+ 
+     var body: some View {
+-        HStack(alignment: .top, spacing: 12) {
+-            Circle()
+-                .fill(Theme.labColor(lab?.color))
+-                .frame(width: 12, height: 12)
+-                .padding(.top, 4)
++        // Two SIBLING buttons: the navigational row content and the
++        // acknowledge action. Neither wraps the other, so taps can't
++        // double-fire and VoiceOver focuses each independently.
++        HStack(alignment: .center, spacing: 4) {
++            Button(action: onOpen) {
++                HStack(alignment: .top, spacing: 12) {
++                    Circle()
++                        .fill(Theme.labColor(lab?.color))
++                        .frame(width: 12, height: 12)
++                        .padding(.top, 4)
++
++                    VStack(alignment: .leading, spacing: 3) {
++                        Text(labName)
++                            .font(.system(size: 15, weight: .semibold))
++                            .foregroundStyle(Theme.ink)
++                        Text(reasonText)
++                            .font(.system(size: 12.5))
++                            .foregroundStyle(Theme.muted)
++                        if let flaggedAt = activity.flaggedAt {
++                            Text("Noticed \(Fmt.relative(flaggedAt))")
++                                .font(.system(size: 11, design: .monospaced))
++                                .foregroundStyle(Theme.dim)
++                        }
++                    }
+ 
+-            VStack(alignment: .leading, spacing: 3) {
+-                Text(labName)
+-                    .font(.system(size: 15, weight: .semibold))
+-                    .foregroundStyle(Theme.ink)
+-                Text(reasonText)
+-                    .font(.system(size: 12.5))
+-                    .foregroundStyle(Theme.muted)
+-                if let flaggedAt = activity.flaggedAt {
+-                    Text("Noticed \(Fmt.relative(flaggedAt))")
+-                        .font(.system(size: 11, design: .monospaced))
+-                        .foregroundStyle(Theme.dim)
++                    Spacer(minLength: 0)
+                 }
++                .contentShape(Rectangle())
+             }
+-
+-            Spacer()
++            .buttonStyle(.plain)
++            .accessibilityLabel(
++                "\(labName), \(reasonText)"
++                + (activity.flaggedAt.map { ", noticed \(Fmt.relative($0))" } ?? "")
++            )
++            .accessibilityHint("Shows this lab in the Labs list.")
+ 
+             Button(action: onAcknowledge) {
+                 Image(systemName: "checkmark.circle")
+@@ -148,13 +170,8 @@ private struct ActivityRow: View {
+             .padding(.vertical, -8)
+             .padding(.trailing, -5)
+             .accessibilityLabel("Mark \(labName) activity as seen")
++            .accessibilityHint("Clears this lab's indicator without leaving the list.")
+         }
+         .padding(.vertical, 4)
+-        .accessibilityElement(children: .combine)
+-        .accessibilityLabel(
+-            "\(labName), \(reasonText)"
+-            + (activity.flaggedAt.map { ", noticed \(Fmt.relative($0))" } ?? "")
+-        )
+-        .accessibilityHint("Double tap to show this lab in the Labs list.")
+     }
+ }
+diff --git a/ReleaseModelRadar/Features/Labs/LabsView.swift b/ReleaseModelRadar/Features/Labs/LabsView.swift
+index 630a510..1f7b1a1 100644
+--- a/ReleaseModelRadar/Features/Labs/LabsView.swift
++++ b/ReleaseModelRadar/Features/Labs/LabsView.swift
+@@ -106,31 +106,45 @@ struct LabsView: View {
+                     retry: nil
+                 )
+             } else {
+-                List {
+-                    if isCached {
+-                        CachedDataNotice(savedAt: cachedAt)
+-                            .listRowBackground(Theme.panel)
+-                            .listRowSeparator(.hidden)
++                ScrollViewReader { proxy in
++                    List {
++                        if isCached {
++                            CachedDataNotice(savedAt: cachedAt)
++                                .listRowBackground(Theme.panel)
++                                .listRowSeparator(.hidden)
++                        }
++                        ForEach(visible) { lab in
++                            LabRow(
++                                lab: lab,
++                                isFavorite: favorites.isFavorite(lab.id),
++                                hasNewInfo: favorites.newInfoLabIDs.contains(lab.id),
++                                onToggleFavorite: { favorites.toggle(lab.id) }
++                            )
++                            .contentShape(Rectangle())
++                            .onTapGesture { favorites.clearNewInfo(for: lab.id) }
++                            .listRowBackground(
++                                highlightedLabID == lab.id
++                                    ? Theme.good.opacity(0.14)
++                                    : Theme.panel
++                            )
++                            .listRowSeparatorTint(Theme.line)
++                            .id(lab.id)
++                        }
+                     }
+-                    ForEach(visible) { lab in
+-                        LabRow(
+-                            lab: lab,
+-                            isFavorite: favorites.isFavorite(lab.id),
+-                            hasNewInfo: favorites.newInfoLabIDs.contains(lab.id),
+-                            onToggleFavorite: { favorites.toggle(lab.id) }
+-                        )
+-                        .contentShape(Rectangle())
+-                        .onTapGesture { favorites.clearNewInfo(for: lab.id) }
+-                        .listRowBackground(
+-                            highlightedLabID == lab.id
+-                                ? Theme.good.opacity(0.14)
+-                                : Theme.panel
+-                        )
+-                        .listRowSeparatorTint(Theme.line)
++                    .radarListStyle()
++                    .refreshable { await load(force: true) }
++                    .onChange(of: highlightedLabID) { _, selected in
++                        guard let selected else { return }
++                        // Surface the lab even when off-screen. The short
++                        // delay lets the activity sheet dismiss and any
++                        // filter lift re-render the list first.
++                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
++                            withAnimation(.easeInOut(duration: 0.3)) {
++                                proxy.scrollTo(selected, anchor: .center)
++                            }
++                        }
+                     }
+                 }
+-                .radarListStyle()
+-                .refreshable { await load(force: true) }
+             }
+         }
+     }
+-- 
+2.43.0
+
