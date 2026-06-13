@@ -1,0 +1,570 @@
+From 6cf87ca7f90af46fed4fae2493f05b7cab295842 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 13 Jun 2026 07:38:39 +0000
+Subject: [PATCH] Add P11-S02 methodology and trust spec (docs only)
+
+---
+ docs/methodology.md                           | 261 ++++++++++++++++++
+ .../p11-s02-methodology-trust-spec-lock.md    | 252 +++++++++++++++++
+ docs/state/010-current-operational-state.md   |  21 ++
+ 3 files changed, 534 insertions(+)
+ create mode 100644 docs/methodology.md
+ create mode 100644 docs/phase-11/p11-s02-methodology-trust-spec-lock.md
+
+diff --git a/docs/methodology.md b/docs/methodology.md
+new file mode 100644
+index 0000000..3458d05
+--- /dev/null
++++ b/docs/methodology.md
+@@ -0,0 +1,261 @@
++# Modelmark — Methodology & Trust Specification
++
++*Status: DRAFT specification (Phase 11, P11-S02). This document defines how
++Modelmark decides what to record, how it is sourced, and what may be
++claimed about it. It is the reference for product copy, App Store
++description, future API trust metadata, and the human review process.*
++
++*Honesty note up front: as of this writing the catalog is **hand-curated**
++and the iOS app is a **read-only client** of a single curated source. This
++document describes both the standard Modelmark holds itself to **today**
++and the stricter guarantees that become available **only after** the
++review/published-database backend exists. Where the two differ, it says so.
++Nothing here describes a system that is already built.*
++
++---
++
++## What Modelmark is
++
++Modelmark is a calm, trusted record of **what changed across AI models, and
++whether you should care.** It is a structured release/change record and a
++source-backed timeline with a calm explanation layer.
++
++Modelmark is **not** an AI news app, a newsfeed, a blog, a hype tracker, a
++best-model leaderboard, an AI tool directory, or an agent marketplace.
++
++Every Modelmark item exists to answer four questions — the **trust
++quartet**:
++1. **Source** — where did this come from?
++2. **Date** — when did it happen?
++3. **What changed** — one factual statement.
++4. **Why it matters** — calm, non-promotional relevance.
++
++If an item cannot answer all four, it is not a Modelmark record.
++
++---
++
++## What Modelmark tracks
++
++- **Model releases** — a new model or version becoming available.
++- **Major model changes** — capability, context window, modality, or
++  behaviour changes that materially affect use.
++- **Availability changes** — region/platform availability, general
++  availability vs preview, access tier changes.
++- **Deprecations** — retirement or sunset of a model or endpoint.
++- **Pricing / access changes** — when **material** (see definition).
++- Each as a **source-backed change record**, not commentary.
++
++## What Modelmark excludes
++
++- Rumours and leaks without official confirmation.
++- Hype, launch-marketing framing, and superlatives.
++- Benchmark "wins" and leaderboard rankings.
++- Opinion, blog, or editorial think-pieces.
++- Community chatter and social speculation.
++- Anything without a citable source.
++- "Best model" verdicts. (Modelmark's USE/WATCH/IGNORE-style guidance, where
++  present, is a *usefulness* note, never a ranking.)
++
++---
++
++## Source hierarchy
++
++From highest to lowest trust:
++
++1. **Official lab announcement** — the lab's own blog, official docs, model
++   card, or release notes.
++2. **Official platform/provider notice** — API changelog, pricing page,
++   deprecation notice from the provider.
++3. **Official verified social post** — from the lab's verified account.
++4. **Reputable secondary reporting** — used **only as a lead** that
++   something may have changed. It is never itself a published source; it
++   must be confirmed against tiers 1–3 before a record is published.
++
++A record's trust rests on the **highest tier** source backing it. Non-
++official sources may *trigger* a look but never *substantiate* a published
++record.
++
++---
++
++## Publishing rules
++
++- A record is published **only** when it satisfies the full trust quartet
++  **and** is backed by a tier 1–3 source.
++- **No source ⇒ not published.** No exceptions.
++- Approximate dates are permitted but must be **marked as estimates** (see
++  below). A record is never given false date precision.
++- "Material" is the threshold for pricing/access changes (see definition);
++  immaterial fluctuations are not recorded.
++- One record = one change. Bundle nothing; split compound announcements
++  into discrete changes where they have distinct dates or types.
++- Duplicates are checked before publish; a change already recorded is
++  updated (as a correction/update), not re-published.
++
++**Today vs later:** today, "published" means *a human added it to the
++curated catalog after checking a source.* Later, "published" means *a
++human approved a candidate out of the review queue into the published
++database.* The bar (trust quartet + tier 1–3 source) is identical; only the
++mechanism changes.
++
++---
++
++## Correction rules
++
++- Corrections are **versioned, not silently overwritten.** When a published
++  fact changes, the record reflects it and carries a visible corrected
++  state.
++- Every record conceptually retains `firstPublishedAt` and `lastUpdatedAt`
++  (see data contract); corrections update the latter and set a correction
++  state.
++- Corrections **never fabricate precision.** (This mirrors the app's
++  existing rule that migrated lab-activity flags must not invent a
++  timestamp.)
++- A correction explains *what* was corrected, not just *that* it was.
++
++---
++
++## Editorial language rules (anti-hype)
++
++- **Calm, factual, present-tense** statements of what changed.
++- **No superlatives** ("best", "game-changing", "revolutionary").
++- **No urgency or hype** ("you need this now", "don't miss").
++- **No implied ranking** between labs or models.
++- **"Why it matters" is explanatory, not promotional** — it helps a reader
++  decide whether to care, and may legitimately say *"probably not relevant
++  to most users."*
++- Neutral toward vendors; Modelmark records, it does not advocate.
++
++### Separating fact from interpretation
++
++- **Facts** (source, date, what changed) are reported plainly and are
++  directly traceable to the source.
++- **Interpretation** ("why it matters", any usefulness guidance) is clearly
++  the explanation layer — phrased as guidance, never as fact, and never
++  presented as something the source said unless it did.
++- A reader must always be able to tell which sentences are sourced fact and
++  which are Modelmark's calm interpretation.
++
++### Approximate dates
++
++- Exact date when the source gives one (e.g. `2026-06-09`).
++- Month-level when only a month is known (rendered as an estimate).
++- Half-year (`H1`/`H2`) or year-only for pre-announcements, always shown as
++  an estimate, never as a precise day.
++- The UI and any future API must distinguish *estimated* from *exact* dates
++  so no false precision is implied. (The app already parses these loose
++  formats; the methodology makes the honesty requirement explicit.)
++
++### Relevance / "why it matters"
++
++- Written for the reader's decision: *should I care?*
++- Allowed to conclude "no, not for most people."
++- On-device personalization (the app's Tune Radar "why it matters to you")
++  is a **local interpretation layer** computed on the device from the
++  user's own choices; it is never server-side profiling and never changes
++  the underlying factual record.
++
++---
++
++## Claims: safe today vs must wait
++
++### Safe to claim today (true of the hand-curated, read-only product)
++- **Curated** — a person selects and writes each entry.
++- **Calm** — no hype, no ranking.
++- **Source-aware** — entries are written from sources, and sources are
++  cited where shown.
++- **Read-only** — the app changes nothing upstream.
++- **Privacy-conscious** — no accounts, no tracking; personalization is
++  on-device.
++- **Model release timeline** — a curated timeline of releases/changes.
++- **Useful summaries** — calm explanations of what changed.
++
++### Must wait for the backend / review / published database
++- **Automated** — there is no automated ingestion in production; the
++  checker only proposes candidates.
++- **Fully verified** — there is no formal verification pipeline yet.
++- **Comprehensive** — coverage is curated and partial, not exhaustive.
++- **Real-time** — updates are periodic and human-paced.
++- **Database-backed** — there is no published database yet (curated TS +
++  cache).
++- **API-ready / public API** — no hardened public API product exists yet.
++- **"Source-backed" in the strict sense** — usable today only when
++  qualified (e.g. "written from official sources"); the strict,
++  per-record, machine-verifiable claim waits for the trust-metadata data
++  contract.
++
++When in doubt, **under-claim.** Trust is the product; an overclaim costs
++more than a missing adjective.
++
++---
++
++## Future API trust metadata
++
++When the published database and API exist, each record should expose trust
++metadata so any client can show *why* an item is trustworthy: the trust
++quartet plus `sourceUrl`, `sourceTier`, `sourcePublishedAt`, `detectedAt`,
++`firstPublishedAt`, `lastUpdatedAt`, `verificationState`, `correctionState`,
++`changeType`, `confidence`, and (internal) `reviewedBy` / `reviewNotes`.
++The public boundary (which of these are exposed publicly vs API-only vs
++internal) is defined in the P11-S01 audit §9 and refined when the API is
++built. **None of this is implemented yet.**
++
++---
++
++## Human review principles
++
++- **Humans publish; tools propose.** No automated process publishes a
++  record without human approval — today or after the backend exists.
++- **The reviewer is the trust gate.** The review checklist (below) must
++  pass before publish.
++- **No auto-publish from extraction.** Any future automated extractor's
++  output is a *candidate* only; extractor output is never trusted as fact.
++- **Silence is not success.** A source going quiet is not evidence that
++  nothing changed; source health is tracked separately from record content.
++
++### Review checklist (per record, before publish)
++- [ ] Source URL present and tier 1–3.
++- [ ] Date verified, and marked estimate if approximate.
++- [ ] "What changed" is one factual sentence, traceable to the source.
++- [ ] "Why it matters" is explanatory and non-hype.
++- [ ] Change type set (release / change / availability / deprecation /
++      pricing).
++- [ ] Lab/model resolved to a known entity (no orphan ids).
++- [ ] Duplicate check against existing records.
++
++---
++
++## Definitions
++
++- **Official source** — a primary source owned by the lab or provider: its
++  blog, docs, model card, release notes, pricing/changelog pages, or
++  verified social account (source tiers 1–3).
++- **Source-backed** — an item whose factual claims are traceable to one or
++  more official sources. Used strictly only once per-record source metadata
++  exists; until then, qualify as "written from sources".
++- **Curated** — selected and written by a human, by hand. Describes the
++  current production reality.
++- **Reviewed** — a human has checked the record against the review
++  checklist before publish.
++- **Verified** — the record's facts have been confirmed against an official
++  (tier 1–3) source. A formal, recorded verification state is a future
++  backend capability; today "verified" is informal and should not be
++  claimed as a guarantee.
++- **Candidate** — a detected, possible change that has **not** been
++  reviewed or published. Candidates are private (cf. today's
++  `data/update-candidates.json`) and never shown to users.
++- **Published record** — a change record that passed review and is visible
++  to clients. The unit of Modelmark.
++- **Correction** — a versioned update to a published record's facts, with a
++  visible corrected state and an explanation of what changed.
++- **Material change** — a change a reasonable user would want to know about:
++  pricing/access shifts that affect cost or eligibility, capability/context
++  changes that affect what the model can do, availability/deprecation that
++  affects whether it can be used. Cosmetic or negligible changes are
++  immaterial and not recorded.
++
++---
++
++*This methodology is the trust contract for Modelmark. It is intentionally
++conservative: it describes a curated, calm, source-aware record today, and
++reserves the words "automated", "verified", "comprehensive", and
++"database-backed" for when the backend earns them.*
+diff --git a/docs/phase-11/p11-s02-methodology-trust-spec-lock.md b/docs/phase-11/p11-s02-methodology-trust-spec-lock.md
+new file mode 100644
+index 0000000..23220d7
+--- /dev/null
++++ b/docs/phase-11/p11-s02-methodology-trust-spec-lock.md
+@@ -0,0 +1,252 @@
++# P11-S02 — Methodology & Trust Spec Lock
++
++Phase 11 — Modelmark Identity & Automation Architecture
++Sprint P11-S02 · docs-only · no app code changed.
++Baseline: `phase-11-s01-current-data-reality-modelmark-scope-audit-lock`.
++
++---
++
++## 1. Executive Summary
++
++This sprint locks the **methodology and trust specification** for Modelmark
++**before** any rename, App Store copy, News-tab change, backend, API claim,
++or automation — exactly the order P11-S01 recommended. The deliverable is
++`docs/methodology.md` (the standing trust contract) plus this report.
++
++The methodology is deliberately conservative and **honest about today's
++hand-curated, read-only reality**. It defines what Modelmark tracks and
++excludes, a four-tier source hierarchy, publishing/correction/editorial
++rules, the fact-vs-interpretation separation, approximate-date handling,
++and a precise vocabulary (official source, source-backed, curated,
++reviewed, verified, candidate, published record, correction, material
++change). Crucially it splits **claims safe today** (curated, calm,
++source-aware, read-only, privacy-conscious, release timeline, useful
++summaries) from **claims that must wait** for the backend (automated,
++fully verified, comprehensive, real-time, database-backed, API-ready, and
++strict "source-backed").
++
++Two decisions are locked here on paper (neither implemented):
++- **News → Updates direction:** the destination is **B (fold News into
++  structured, source-backed change records)**, surfaced under the name
++  **"Updates" (A)**. For App Store v1, before the backend exists, the safe
++  bridge is **D (keep, but clearly label authority and lead with official
++  sources)** — with **C (remove from v1)** as the fallback if honest
++  labeling can't be done cleanly. See §7.
++- **Trust quartet as the data contract:** every future change record must
++  carry **source, date, what changed, why it matters**, with a defined set
++  of optional trust metadata. See §8.
++
++No app code, UI copy, rename, or backend was touched.
++
++---
++
++## 2. Methodology Lock
++
++`docs/methodology.md` is created and is the canonical reference. Locked
++points:
++- **Mandate:** "What changed across AI models, and should I care?" — a
++  calm, trusted **record**, not news/feed/blog/leaderboard/directory.
++- **Trust quartet** is mandatory: no source/date/what/why ⇒ not a record.
++- **Tracks:** releases, major changes, availability changes, deprecations,
++  material pricing/access changes — as source-backed change records.
++- **Excludes:** rumours, hype, benchmarks-as-wins, opinion, chatter,
++  unsourced items, "best model" verdicts.
++- **Humans publish; tools propose** — true today and after the backend.
++- **Under-claim by default** — trust is the product.
++
++## 3. Source Hierarchy
++
++1. Official lab announcement (blog, docs, model card, release notes).
++2. Official platform/provider notice (API changelog, pricing, deprecation).
++3. Official verified social post.
++4. Reputable secondary reporting — **lead only**, never a published source;
++   must be confirmed against tiers 1–3 before publish.
++
++A record's trust = its highest-tier source. Non-official sources trigger a
++look but never substantiate a published record.
++
++## 4. Publishing Rules
++
++- Publish only with the full trust quartet **and** a tier 1–3 source.
++- No source ⇒ not published.
++- Approximate dates allowed but always marked as estimates; never fake
++  precision.
++- "Material" gates pricing/access records.
++- One record = one change; de-duplicate before publish.
++- **Today:** "published" = a human added it to the curated catalog after
++  checking a source. **Later:** = a human approved a candidate from the
++  review queue into the published DB. Same bar, different mechanism.
++
++## 5. Correction Rules
++
++- Versioned, never silent; visible corrected state.
++- Retain `firstPublishedAt` / `lastUpdatedAt` conceptually.
++- Never fabricate precision (mirrors the app's no-invented-timestamp rule).
++- A correction explains what was corrected.
++
++## 6. Editorial Language Rules
++
++- Calm, factual, present-tense; no superlatives, no urgency, no implied
++  ranking.
++- "Why it matters" is explanatory, may say "probably not relevant to most."
++- Facts (source/date/what) are traceable; interpretation (why it matters,
++  any usefulness note) is clearly the explanation layer, never presented as
++  sourced fact.
++- On-device personalization is local interpretation only, never profiling,
++  never alters the factual record.
++
++## 7. News / Updates Decision (explicit recommendation)
++
++**Context:** the current "News" surface — including a non-official
++"news-search" fallback upstream — is the single biggest positioning risk
++for a product branded as a *trusted record*.
++
++**Options considered:** A rename/reframe to "Updates"; B fold into
++structured change records; C remove from App Store v1; D keep temporarily
++but label as less authoritative.
++
++**Recommendation (paper only — not implemented this sprint):**
++
++- **Destination = B, named via A.** The true Modelmark direction is to
++  **fold the News surface into structured, source-backed change records**
++  and surface them under the calm name **"Updates"** (not "News",
++  "stories", or "headlines"). This *is* what Modelmark is; a separate
++  newsfeed should not survive long-term.
++- **App Store v1 bridge = D, with strict guardrails.** Because structured
++  change records require the backend (which does not exist yet), v1 should
++  **keep the existing Updates surface only if** it: (1) leads with official
++  (tier 1–3) sources, (2) **clearly labels** any non-official item as less
++  authoritative, and (3) never presents the surface as a verified/automated
++  record.
++- **Fallback = C.** If that honest labeling cannot be implemented cleanly
++  and calmly in the later copy/rename sprint, **remove the surface from
++  App Store v1** rather than ship something that reads as a hype newsfeed
++  under a trust brand. Removal is preferable to an overclaim.
++
++**Not** recommended: keeping "News" framing as-is (A alone, without B's
++substance) — a rename without the authority labeling would be cosmetic and
++still risk the trust positioning.
++
++This decision is recorded, not built. Implementation belongs to the later
++copy-alignment sprint (and, for B, to the data-model + backend phases).
++
++## 8. Trust Quartet Data Contract (future — paper only)
++
++Every future Modelmark change record **must** include the quartet:
++
++| Field | Meaning | Required |
++|---|---|---|
++| `source` | where it came from (official tier 1–3) | **Yes** |
++| `date` | when the change happened (exact or marked estimate) | **Yes** |
++| `whatChanged` | one factual statement | **Yes** |
++| `whyItMatters` | calm, non-promotional relevance | **Yes** |
++
++Optional future metadata (defined, not implemented):
++
++| Field | Meaning |
++|---|---|
++| `sourceUrl` | canonical link to the official source |
++| `sourceTier` | 1–4 per §3 (published records are 1–3) |
++| `sourcePublishedAt` | timestamp the source published |
++| `detectedAt` | when the checker first detected a candidate |
++| `firstPublishedAt` | when Modelmark first published the record |
++| `lastUpdatedAt` | last correction/update |
++| `verificationState` | candidate / reviewed / verified / corrected |
++| `correctionState` | none / corrected (+ what) |
++| `changeType` | release / change / availability / deprecation / pricing |
++| `confidence` | model/extraction confidence (internal-leaning) |
++| `reviewedBy` | reviewer identity (internal) |
++| `reviewNotes` | review rationale (internal) |
++
++Public vs API-only vs internal exposure follows P11-S01 §9. Required-quartet
++fields are public; review internals (`reviewedBy`, `reviewNotes`,
++`confidence`) stay private/internal.
++
++**This is a contract on paper.** No schema, type, migration, or API is
++created in this sprint.
++
++## 9. App Store v1 Claim Boundaries
++
++**Safe to claim today** (true of the curated, read-only product):
++curated · calm · source-aware · read-only · privacy-conscious · model
++release timeline · useful summaries.
++
++**Unsafe today — must wait** (qualify or omit):
++automated · fully verified · comprehensive · real-time · database-backed ·
++API-ready · "source-backed" in the strict sense (usable only when qualified
++as "written from official sources").
++
++**Safest v1 description language (recommended):**
++> "A calm, curated, source-aware timeline of AI model releases and changes,
++> with plain-language summaries of what changed and why it might matter.
++> Read-only and privacy-conscious — no account, no tracking."
++
++Avoid in v1 copy: "automatically tracks", "verified", "comprehensive/every
++model", "real-time", "the database of record".
++
++## 10. Future Backend / API Trust Metadata
++
++When the published DB + API exist (later phases), records expose the quartet
++plus the §8 metadata so any client can show *why* an item is trustworthy.
++Verification/correction states become formal and recorded rather than
++informal. Source health is tracked separately from record content (silence
++≠ "nothing changed"). None of this is implemented now; it is the target the
++methodology points at.
++
++## 11. Risks and Unknowns
++
++- **Overclaim risk remains the top risk** until copy is aligned (next
++  sprint) — the methodology reduces it but does not change shipped copy yet.
++- **News/Updates is decided on paper only;** the v1 outcome (D vs C) depends
++  on whether honest authority-labeling is achievable in the copy sprint.
++- **Trust quartet is uncoupled from current data:** today's records are
++  *models* with `released`/`useFor`, not *changes* with source/what/why.
++  Adopting the contract is a real data-model + API change (later, coordinated
++  web+app), not a copy tweak.
++- **"Verified" temptation:** easy to imply more rigor than exists; the
++  definitions deliberately keep "verified" informal until the backend.
++- **Process caveat:** authored in a cloud mirror, no Xcode; docs-only, so no
++  build is implicated, but the branch must be applied/pushed on the Mac to
++  be reviewable (see delivery note).
++
++## 12. Recommended Sprint Sequence
++
++1. P11-S01 — audit + plan. ✅ (locked)
++2. **P11-S02 (this)** — methodology & trust spec lock. ✅
++3. **P11-S03 — App copy / trust alignment (no rename):** bring in-app
++   language within the §9 boundaries; apply the §7 v1 decision (D guardrails
++   or C) to the Updates surface. *App copy only, still RMR-named.*
++4. P11-S04 — Identity rename (RMR/Radar → Modelmark): target, bundle id,
++   App Group, widget kind, copy, docs, tests. One deliberate pre-submission
++   sprint.
++5. P11-S05 — Data model: `ModelChange` + trust quartet/metadata across
++   web/API + app. *Coordinated.*
++6. P11-S06 — Backend foundation (managed Postgres + schema + seed import).
++7. P11-S07 — Ingestion (source registry, scheduled checker, change detector).
++8. P11-S08 — Review queue + admin.
++9. P11-S09 — Public API hardening (keys, limits, boundary).
++10. P11-S10 — Web app on the published DB.
++11. P11-S11 — App Store submission under Modelmark.
++
++## 13. Recommended Immediate Next Sprint
++
++**P11-S03 — App Copy / Trust Alignment (app copy only, no rename).**
++
++Why next, why safe:
++- The methodology now exists, so copy can be measured against §9 boundaries.
++- It removes the **live overclaim risk** in shipped copy *before* the
++  rename, so the App Store-facing language is honest regardless of name.
++- It applies the §7 Updates decision at the copy level (D guardrails: lead
++  with official, label non-official; or C: remove for v1) **without**
++  touching the data model or backend.
++
++Scope guardrails for P11-S03: change **only** user-facing strings and the
++Updates surface's authority presentation; **no rename**, no type/enum
++renames, no API/backend, no schema. Keep it a contained, reviewable copy
++sprint.
++
++---
++
++*End of P11-S02. Docs-only. No app code, UI copy, rename, bundle/App Group/
++widget/target/scheme/test/project change, backend, API, admin, schema,
++automation, or deployment configuration was changed.*
+diff --git a/docs/state/010-current-operational-state.md b/docs/state/010-current-operational-state.md
+index 1f7988e..363e9f4 100644
+--- a/docs/state/010-current-operational-state.md
++++ b/docs/state/010-current-operational-state.md
+@@ -22,3 +22,24 @@ not rewrite history.
+   source→review→publish backend as a separate later phase.
+ - **Recommended next sprint:** **P11-S02 — Methodology & Trust Spec Lock**
+   (docs only).
++
++## P11-S02 — Methodology & Trust Spec Lock — COMPLETED
++
++- **Status:** completed (docs only; no app code changed).
++- **Created:** `docs/methodology.md` (standing trust contract) and
++  `docs/phase-11/p11-s02-methodology-trust-spec-lock.md` (sprint report).
++- **Locked:** trust quartet (source, date, what changed, why it matters) as
++  the mandatory record contract; 4-tier source hierarchy; publishing /
++  correction / editorial (anti-hype) rules; fact-vs-interpretation split;
++  estimate-date honesty; vocabulary definitions.
++- **App Store v1 claim boundaries:** safe today = curated, calm,
++  source-aware, read-only, privacy-conscious, release timeline, useful
++  summaries. Must wait for backend = automated, fully verified,
++  comprehensive, real-time, database-backed, API-ready, strict
++  "source-backed".
++- **News/Updates decision (paper only):** destination **B** (fold into
++  structured change records) under the name **"Updates" (A)**; App Store v1
++  bridge **D** (keep but label authority, lead with official), fallback
++  **C** (remove from v1) if honest labeling isn't clean.
++- **Recommended next sprint:** **P11-S03 — App Copy / Trust Alignment**
++  (app copy only, no rename).
+-- 
+2.43.0
+

@@ -22,3 +22,24 @@ not rewrite history.
   source→review→publish backend as a separate later phase.
 - **Recommended next sprint:** **P11-S02 — Methodology & Trust Spec Lock**
   (docs only).
+
+## P11-S02 — Methodology & Trust Spec Lock — COMPLETED
+
+- **Status:** completed (docs only; no app code changed).
+- **Created:** `docs/methodology.md` (standing trust contract) and
+  `docs/phase-11/p11-s02-methodology-trust-spec-lock.md` (sprint report).
+- **Locked:** trust quartet (source, date, what changed, why it matters) as
+  the mandatory record contract; 4-tier source hierarchy; publishing /
+  correction / editorial (anti-hype) rules; fact-vs-interpretation split;
+  estimate-date honesty; vocabulary definitions.
+- **App Store v1 claim boundaries:** safe today = curated, calm,
+  source-aware, read-only, privacy-conscious, release timeline, useful
+  summaries. Must wait for backend = automated, fully verified,
+  comprehensive, real-time, database-backed, API-ready, strict
+  "source-backed".
+- **News/Updates decision (paper only):** destination **B** (fold into
+  structured change records) under the name **"Updates" (A)**; App Store v1
+  bridge **D** (keep but label authority, lead with official), fallback
+  **C** (remove from v1) if honest labeling isn't clean.
+- **Recommended next sprint:** **P11-S03 — App Copy / Trust Alignment**
+  (app copy only, no rename).
