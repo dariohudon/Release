@@ -1,0 +1,119 @@
+From 1626a8e8f040a1823edf14f4b663ebb62623ecdc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 13 Jun 2026 03:53:05 +0000
+Subject: [PATCH] Polish News spacing and add native share
+
+---
+ .../Features/News/NewsView.swift              | 32 ++++++++++++++-----
+ .../FavoriteLabNewsTests.swift                | 14 ++++++++
+ docs/app-store-readiness.md                   | 10 ++++--
+ 3 files changed, 46 insertions(+), 10 deletions(-)
+
+diff --git a/ReleaseModelRadar/Features/News/NewsView.swift b/ReleaseModelRadar/Features/News/NewsView.swift
+index fad725a..f33e264 100644
+--- a/ReleaseModelRadar/Features/News/NewsView.swift
++++ b/ReleaseModelRadar/Features/News/NewsView.swift
+@@ -342,7 +342,7 @@ struct NewsRow: View {
+     }
+ 
+     var body: some View {
+-        VStack(alignment: .leading, spacing: 6) {
++        VStack(alignment: .leading, spacing: 7) {
+             HStack(spacing: 8) {
+                 Text(item.labName)
+                     .font(.system(size: 11, weight: .medium, design: .monospaced))
+@@ -359,6 +359,7 @@ struct NewsRow: View {
+             Text(item.title)
+                 .font(.system(size: 14.5, weight: .semibold))
+                 .foregroundStyle(Theme.ink)
++                .fixedSize(horizontal: false, vertical: true)
+ 
+             if let snippet = item.snippet, !snippet.isEmpty {
+                 Text(snippet)
+@@ -368,16 +369,31 @@ struct NewsRow: View {
+             }
+ 
+             if let url = URL(string: item.url) {
+-                Link(destination: url) {
+-                    HStack(spacing: 4) {
+-                        Text("Open")
+-                        Image(systemName: "arrow.up.right")
++                HStack(spacing: 18) {
++                    Link(destination: url) {
++                        HStack(spacing: 4) {
++                            Text("Open")
++                            Image(systemName: "arrow.up.right")
++                        }
++                        .font(.system(size: 12, weight: .semibold))
++                        .foregroundStyle(Theme.good)
++                    }
++                    // Native iOS share of the article link; the article
++                    // title rides along as the share-sheet preview. Does
++                    // not replace "Open"; shares nothing private.
++                    ShareLink(item: url, preview: SharePreview(item.title)) {
++                        HStack(spacing: 4) {
++                            Image(systemName: "square.and.arrow.up")
++                            Text("Share")
++                        }
++                        .font(.system(size: 12, weight: .semibold))
++                        .foregroundStyle(Theme.muted)
+                     }
+-                    .font(.system(size: 12, weight: .semibold))
+-                    .foregroundStyle(Theme.good)
++                    .accessibilityLabel("Share \(item.title)")
+                 }
++                .padding(.top, 2)
+             }
+         }
+-        .padding(.vertical, 4)
++        .padding(.vertical, 7)
+     }
+ }
+diff --git a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+index 4449a3f..44cde85 100644
+--- a/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
++++ b/ReleaseModelRadarTests/FavoriteLabNewsTests.swift
+@@ -130,4 +130,18 @@ final class FavoriteLabNewsTests: XCTestCase {
+ 
+         XCTAssertEqual(FavoriteLabNews.relatedState(for: nil, items: feed), .invalidLab)
+     }
++
++    /// Phase 10D cap audit: the top-3 cap is a For You concern only. On the
++    /// SAME feed, a lab with 4 stories yields 3 in For You but all 4 in
++    /// Related Stories — the cap must never leak into related mode.
++    func test_topThreeCapIsForYouOnlyNotRelated() {
++        let forYou = FavoriteLabNews.select(from: feed, favoriteIDs: ["anthropic"])
++        XCTAssertEqual(forYou.count, 3, "For You stays capped at 3 per favourite lab")
++
++        let related = FavoriteLabNews.relatedState(labID: "anthropic", knownLabIDs: knownLabs, items: feed)
++        guard case .stories(let relatedItems) = related else {
++            return XCTFail("expected stories, got \(related)")
++        }
++        XCTAssertEqual(relatedItems.count, 4, "Related Stories is uncapped for the selected lab")
++    }
+ }
+diff --git a/docs/app-store-readiness.md b/docs/app-store-readiness.md
+index 0d120ab..846467e 100644
+--- a/docs/app-store-readiness.md
++++ b/docs/app-store-readiness.md
+@@ -200,9 +200,15 @@ stack is confirmed and written down.
+ 
+ ## Known carry-forward backlog (post-ship)
+ 
+-- Favourite Labs → filtered News view.
++- Favourite Labs → filtered News view. (Shipped: Phase 10B/10C.)
+ - Community/Reddit signal exploration (web first, then app).
+-- Save/share a news item.
++- Share a news item: shipped in Phase 10D via native `ShareLink`
++  (shares the article URL, with the title as the share-sheet preview).
++- Save/bookmark a news item: DEFERRED. A bookmark feature done well needs
++  a persistence model, a visible saved state, and likely a saved-news
++  surface — beyond a polish sprint's scope. Revisit as its own phase if
++  wanted; would be a local-only UserDefaults set of saved article URLs,
++  no sync, with copy making clear saved items live only on this device.
+ - Optional: notification tap routes to the Radar tab.
+ - Light appearance via semantic tokens (app is intentionally dark-only
+   for v1). What a future light pass must address, per the Phase 10A
+-- 
+2.43.0
+
