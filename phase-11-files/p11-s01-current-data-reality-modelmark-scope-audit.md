@@ -1,0 +1,492 @@
+# P11-S01 — Current Data Reality & Modelmark Scope Audit
+
+Phase 11 — Modelmark Identity & Automation Architecture
+Sprint P11-S01 · planning/architecture audit only · no app code changed.
+
+---
+
+## 1. Executive Summary
+
+The iOS app currently named **Release Model Radar (RMR)** is a thin,
+read-only native client. It bundles **no catalog content**: every model,
+lab, definition, news item, and update-status value is fetched at runtime
+from the public API at `https://release.brightening.ca`
+(`ReleaseModelRadar/API/APIClient.swift:48`). The only data the app
+*owns* on-device is local convenience state: a response cache, a few
+UserDefaults preference keys, and a tiny App Group widget snapshot.
+
+The **source of truth lives entirely in the separate web/API repo**
+(`dariohudon/Release`), where the catalog is **hand-curated** in
+TypeScript (`lib/models/data.ts`, `lib/definitions/data.ts`). One cron
+script (`scripts/check-model-updates.ts`) produces *candidate* signals for
+human review; it never edits the live catalog. So today's pipeline is:
+**human curation + a manual review aid**, not automated ingestion.
+
+For the move to **Modelmark** ("a calm, trusted record of what changed
+across AI models"), the encouraging finding is that the product is
+*already structurally close*: curated, source-aware, timeline-first, calm
+in tone, with no leaderboard, no hype, no agent marketplace. The main
+gaps are (a) naming/branding ("radar", "RMR", "news/feed" framing),
+(b) the **News tab**, which is the one surface that reads like a newsfeed
+rather than a trusted change record, and (c) the absence of the
+**trust quartet** (source, date, what changed, why it matters) as a
+*guaranteed, structured* per-item contract rather than prose.
+
+Biggest risk: the rename is cheap; the **trust/methodology + ingestion
+backend is the real work**, and shipping an App Store v1 under the
+Modelmark name without that backbone risks promising "source-backed
+record" while the data is still hand-maintained. Recommendation: ship a
+**static/curated v1** honestly described, and build the
+source→review→publish backend as a distinct later phase.
+
+This document plans that future architecture. **It builds none of it.**
+
+---
+
+## 2. Current iOS Data Reality
+
+**Verdict: remote-fed, read-only. No hardcoded catalog, no bundled JSON,
+no local content assets.**
+
+| Question | Reality |
+|---|---|
+| Hardcoded in Swift? | **No catalog.** Only UI copy strings and the notification reminder text are literals. |
+| Loaded from local JSON? | **No.** No bundled content JSON exists in the app target. |
+| Bundled as assets? | Only the app icon / asset catalog. No data assets. |
+| Fetched from a remote API? | **Yes — exclusively.** All content via 5 endpoints on `release.brightening.ca`. |
+| Partially generated? | The **release timeline** is computed on-device from each model's `released` string (`ReleaseTimelineView.swift`), but its input data is remote. |
+| Already automated? | Only upstream: a cron checker on the server produces review *candidates*; the catalog itself is hand-curated. The app automates nothing. |
+
+**Networking entry point:** `ReleaseModelRadar/API/APIClient.swift`
+(`baseURL = https://release.brightening.ca`, line 48). Read-only GETs; no
+mutation calls anywhere.
+
+**Decodable mirrors:** `ReleaseModelRadar/API/APIModels.swift` — Swift
+structs mirroring the web app's `lib/api/types.ts`, `lib/models/data.ts`,
+`lib/definitions/data.ts`, `lib/news/fetchNews.ts` (referenced in the file
+header).
+
+**Endpoints consumed:** `/api/models`, `/api/labs`, `/api/definitions`,
+`/api/update-status`, `/api/news`.
+
+**On-device persistence (app-owned, all local, no sync):**
+- API response cache — `ReleaseModelRadar/API/LocalAPIResponseCache.swift`
+  (Library/Caches; last-good responses only).
+- UserDefaults — Tune Radar answers, lab favourites, lab activity records,
+  daily-reminder settings.
+- App Group snapshot — `ReleaseModelRadar/Widgets/RadarStatusSnapshot.swift`
+  (3 public fields written by the app, read by the widget).
+
+---
+
+## 3. Source of Truth Inventory
+
+Exact paths. App-side = iOS repo; Upstream = `dariohudon/Release` web/API repo.
+
+| Content | Source of truth (upstream) | App-side consumer | Notes |
+|---|---|---|---|
+| **Release entries** | `lib/models/data.ts` (MODELS, hand-curated) | `/api/models` → `APIModels.swift` `RadarModel` | Curated, not generated. |
+| **Model names** | `lib/models/data.ts` | same | — |
+| **Labs** | `lib/models/data.ts` (LABS, with hex colours) | `/api/labs` → `Lab` | — |
+| **Definitions** | `lib/definitions/data.ts` | `/api/definitions` → `Definition` | Static glossary. |
+| **Useful-for / relevance copy** | `lib/models/data.ts` (`useFor`, verdict) | `/api/models`; rendered in `ModelDetailView.swift` | Public, generic. |
+| **"Why it matters to you"** | **On-device only** | `TuneRadar/TuneRadarRecommendation.swift` | Computed from local Tune Radar answers; never server-side. |
+| **Timeline / history** | Derived in-app from `released` field | `Components/ReleaseTimelineView.swift` | No separate history store; recomputed each render. |
+| **News / story content** | `lib/news/sources.ts` + `lib/news/fetchNews.ts` (official RSS first, "news-search" fallback) | `/api/news` → `NewsItem`; `Features/News/*` | The most "feed-like" surface. |
+| **Widget snapshot** | Built app-side from `/api/update-status` | `Components/StatusBadge.swift` writes `RadarStatusSnapshot` | `checkedAt`, `failedSources`, `savedAt` only. |
+| **Notification content** | **Hardcoded literals** | `Notifications/DailyReminderStore.swift` `Constants.title/body` | Restrained reminder; claims nothing about data. |
+| **Update-status** | `data/update-status.json` (written by cron) | `/api/update-status` → `UpdateStatus` | Operational metadata, not catalog. |
+| **Update candidates** | `data/update-candidates.json` (private, gitignored) | **Not exposed** | Human-review aid; never public, never in the app. |
+| **Cron checker** | `scripts/check-model-updates.ts` | n/a | Detects signals; **does not edit the catalog**. |
+
+**Single most important fact:** the catalog is **hand-curated TypeScript**
+in `lib/models/data.ts`. There is no database, no automated publish path,
+no ingestion pipeline today.
+
+---
+
+## 4. Rename / Scope Impact (replacement map — NOT applied)
+
+References found across Swift, tests, docs, project identity. **Nothing is
+changed in this sprint.** This is a map for a future rename sprint.
+
+### 4.1 Identity / project-level (high blast radius — needs care)
+| Current | Where | Proposed Modelmark target |
+|---|---|---|
+| `ReleaseModelRadar` (app target, folders, app entry) | `ReleaseModelRadarApp.swift`, target name, group | `Modelmark` (target rename = pbxproj + folder + scheme work) |
+| `com.octopusandson.ReleaseModelRadar` (bundle id) | pbxproj, entitlements, App Group | New bundle id `…​.Modelmark` ⚠️ **changing bundle id = new App Store record**; decide before first submission |
+| `group.com.octopusandson.ReleaseModelRadar` | both entitlements, `RadarStatusSnapshot.swift` | `group.…​.Modelmark` (must match across app+widget) |
+| `RadarStatusWidget`, kind `"RadarStatusWidget"` | `RadarStatusWidget/*`, `RadarStatusSnapshot.swift` | `ModelmarkStatusWidget` |
+| `ReleaseModelRadarTests` | test target | `ModelmarkTests` |
+
+### 4.2 User-facing copy / naming
+| Current | Where | Proposed |
+|---|---|---|
+| "Release Model Radar" (web link label, About) | `SettingsView.swift` | "Modelmark" |
+| Notification title "Release Model Radar" | `DailyReminderStore.swift` | "Modelmark" |
+| "RELEASE MODEL RADAR" (widget header) | `RadarStatusWidget.swift` | "MODELMARK" |
+| Tab label "Radar" | `ReleaseModelRadarApp.swift` | already "Today" as heading (10A); tab could become "Today" |
+| "RELEASE TIMELINE" card title | `ReleaseTimelineView.swift` | "Release timeline" / "What changed" |
+| **Tune Radar** (feature name, onboarding, settings) | `TuneRadar/*`, `SettingsView.swift` | "Tune" / "Preferences" — drop "Radar" metaphor |
+| "radar" in body copy ("tune the radar", "new info on the radar") | onboarding, empty states | reframe to "your record"/"what you follow" |
+
+### 4.3 News/feed framing (positioning-sensitive — see §5)
+| Current | Where | Proposed direction |
+|---|---|---|
+| **News tab** ("Lab News", "ALL NEWS", "FOR YOU") | `Features/News/*`, `ReleaseModelRadarApp.swift` | Reframe as **"Updates"/"Changes"** — source-backed change records, not headlines |
+| `NewsItem`, `NewsPayload`, `FavoriteLabNews` (types/enums) | `APIModels.swift`, `Features/News/*` | Rename to `UpdateItem`/`Change…` in a later data-model sprint (API contract change — coordinate with web) |
+| "stories", "headline", "Recent stories from labs you follow" | `NewsView.swift`, `FavoriteLabNews.swift`, `LabFavoritesStore.swift` (`.newsHeadlineChanged`) | "updates", "changes from labs you follow" |
+| "news-search" fallback source tag | upstream `lib/news/*` | Modelmark trust rules may **exclude** non-official sources or label them explicitly (see §6) |
+
+### 4.4 Docs / tests
+- `README.md`, `docs/ios-mvp-plan.md`, `docs/app-store-readiness.md` — full
+  of "Release Model Radar", "radar", "news". Rename in a docs sprint.
+- Test names/files: `FavoriteLabNewsTests`, `RadarStatusSnapshotTests`,
+  `LabActivityTests` reference radar/news vocabulary. Rename with the code.
+
+**Rename sequencing caution:** identity-level renames (target, bundle id,
+App Group, widget kind) are mechanical but high-risk (signing, App Store
+record, widget data continuity). They should be **one deliberate sprint**,
+ideally *before* first App Store submission, not interleaved with feature
+work.
+
+---
+
+## 5. Product Positioning Lock
+
+Modelmark answers: **"What changed across AI models, and should I care?"**
+
+### Already aligned (keep)
+- **Curated, source-aware catalog** — not a hype tracker; matches "trusted
+  record".
+- **Timeline-first** release view (`ReleaseTimelineView`) — directly the
+  "source-backed timeline of changes" idea.
+- **Calm explanation layer** — USEFUL FOR + WHY IT MATTERS TO YOU; the calm
+  tone is already the house style.
+- **No leaderboard / no agent marketplace / no tool directory** — the app
+  never ranks "best model"; USE/WATCH/IGNORE is a usefulness label, not a
+  ranking.
+- **Definitions glossary** — fits the "calm explanation layer".
+- **Read-only, privacy-clean, on-device personalization** — fits a
+  "trusted" product.
+
+### Needs copy adjustment (no data change)
+- "Radar" / "Tune Radar" metaphor → Modelmark vocabulary.
+- News tab framing → "Updates/Changes" with the trust quartet visible.
+- USE/WATCH/IGNORE wording audit so it never reads as a leaderboard.
+
+### Needs data architecture change (later)
+- **Per-item trust quartet as structured fields**: every item must carry
+  `source`, `date`, `whatChanged`, `whyItMatters` as first-class data, not
+  prose. Today: models carry `released` + `useFor`; there is no structured
+  `whatChanged` / `sourceURL` on a *change* entity.
+- **Change entity**: Modelmark is about *changes* (release, deprecation,
+  pricing/access, availability). Today the unit is a *model*, with news as
+  a loose adjunct. A `ModelChange` record type is the core future model.
+
+### Should wait until backend/API phase
+- Automated ingestion, review queue, source health, published DB.
+- Any claim of "automatically tracked / source-verified".
+
+### Should NOT be part of Modelmark
+- General AI **news aggregation** as an end in itself (the current "news-
+  search" fallback leans this way) — keep only **official, source-backed**
+  change records, or clearly segregate/label anything else.
+- Blog, hype/launch commentary, community chatter, "best model" verdicts.
+
+---
+
+## 6. Methodology / Trust Rules (DRAFT)
+
+**What Modelmark tracks:** model releases; major model changes; availability
+changes; deprecations; pricing/access changes *when material*; each as a
+**source-backed change record**.
+
+**What Modelmark excludes:** rumours, leaks without official confirmation,
+hype/launch marketing framing, benchmark "wins", opinion/blog content,
+community chatter, anything without a citable source.
+
+**Source hierarchy (highest → lowest trust):**
+1. Official lab announcement (lab blog, official docs, model card, release
+   notes).
+2. Official platform/provider notice (API changelog, pricing page,
+   deprecation notice).
+3. Official social post from the lab's verified account.
+4. Reputable secondary reporting — **only** to flag that something may have
+   changed; must be confirmed against (1)–(3) before publish.
+   (Non-official is a *lead*, never a published source.)
+
+**Publishing rules:** an item publishes only when it has source URL + date
++ what-changed + why-it-matters. No source ⇒ not published. Estimated
+dates flagged as estimates (the app already distinguishes loose date
+formats). "Material" threshold for pricing/access changes defined and
+applied consistently.
+
+**Correction rules:** corrections are versioned, not silently overwritten;
+each item keeps `firstPublishedAt` and `lastUpdatedAt`; a visible
+"corrected" state when a published fact changes. Never fabricate
+precision (mirrors the app's existing "no invented timestamp" rule for
+migrated lab activity).
+
+**Editorial language rules:** calm, factual, present-tense "what changed";
+no superlatives ("best", "game-changing"), no urgency/hype, no implied
+ranking. "Why it matters" is explanatory, not promotional.
+
+**Admin review checklist (per item before publish):**
+- [ ] Source URL present and official-tier.
+- [ ] Date verified (and marked estimate if approximate).
+- [ ] "What changed" is one factual sentence.
+- [ ] "Why it matters" is explanatory, non-hype.
+- [ ] Change type set (release/change/availability/deprecation/pricing).
+- [ ] Lab/model resolved to known entity (no orphan ids).
+- [ ] Duplicate check against existing records.
+
+**API trust metadata (per published item):** `sourceUrl`, `sourceTier`,
+`sourcePublishedAt`, `firstPublishedAt`, `lastUpdatedAt`, `changeType`,
+`verificationState` (auto-detected / human-reviewed / corrected),
+`confidence`. These let clients display *why* an item is trustworthy.
+
+---
+
+## 7. Ingestion Architecture Plan (NOT BUILT)
+
+```
+Official Sources
+  ↓  (Source Registry: who/where/how to check)
+Automated Source Detection   (Scheduled Checker → Change Detector)
+  ↓
+Structured Extraction        (Extractor → candidate records)
+  ↓
+Manual Review Queue          (human approval — the trust gate)
+  ↓
+Published Database
+  ↓
+iOS App / Web App / API      (read layer)
+```
+
+**Components & likely tables/models:**
+- **Source Registry** — `sources` (id, lab_id, url, type, tier,
+  check_method, active, health fields). *Extends today's
+  `lib/news/sources.ts` concept into data.*
+- **Scheduled Checker** — job per source on a cadence; writes raw
+  fetch results + status. *Evolves `scripts/check-model-updates.ts`.*
+- **Change Detector** — diffs latest fetch vs last seen → `raw_signals`.
+- **Extractor** — turns a signal into a structured `change_candidate`
+  (changeType, model, what/why draft, sourceUrl, date).
+- **Review Queue** — `change_candidates` with `reviewState`
+  (pending/approved/rejected/needs-info); approval promotes to…
+- **Published Database** — `model_changes` (the trust quartet + metadata
+  from §6), `models`, `labs`, `definitions`.
+- **App/API Read Layer** — read-only endpoints over the published DB.
+
+**Job structure:** independent, idempotent, per-source jobs; one orchestrator
+on a schedule; retries with backoff; every run recorded for source-health.
+
+**Failure modes to design for:** source HTML/RSS changes; rate-limiting /
+blocking; duplicate or near-duplicate signals; false positives; extractor
+hallucination (must never auto-publish); stale source (no updates ≠
+healthy); date ambiguity; lab/model id drift.
+
+**Manual approval points:** every promotion from candidate → published is
+human-gated for v1 of the backend. No auto-publish. (Mirrors today's
+"checker proposes, human disposes" discipline.)
+
+**Source health tracking:** lastCheckedAt, lastSuccessAt, consecutive
+failures, lastSignalAt; surface "stale/unhealthy" so silence isn't mistaken
+for "nothing changed". (The app already models a 36h staleness idea for
+update-status — generalize it.)
+
+**Migration path from current data:** the hand-curated `lib/models/data.ts`
+and `lib/definitions/data.ts` become the **seed** of the published DB
+(one-time import). The cron checker's existing candidate output is the
+prototype for the review queue. No data is lost; curation continues until
+ingestion is trustworthy, then runs alongside it.
+
+---
+
+## 8. Web / API / Admin Architecture Plan (NOT BUILT)
+
+Target surfaces:
+```
+modelmark.ai        Public website + web app   (Next.js)
+api.modelmark.ai    Public read API            (separate service)
+admin.modelmark.ai  Private review queue        (protected)
+later: docs.modelmark.ai, status.modelmark.ai
+```
+
+**Public website + web app = one Next.js app?** **Yes.** Marketing pages
+and the interactive web timeline share design system and data access;
+one Next.js app (App Router) with static marketing + dynamic data routes
+is simplest to run and matches the existing web project.
+
+**API a separate service?** **Yes, logically separate** (own subdomain,
+own deploy, own rate limits and caching), even if it starts as a route
+group sharing the DB. Separation protects the commercial API and lets the
+public site cache aggressively without coupling.
+
+**Admin a separate app or protected route group?** **Separate app
+(admin.modelmark.ai) or at minimum an auth-walled, separately-deployed
+surface.** The review queue is private, mutates data, and needs real auth;
+keep it off the public app's attack surface. A protected route group is
+acceptable for an early internal-only version, but plan for a separate
+deployment.
+
+**DigitalOcean implications:** today the web app runs on a single server
+(pm2 + cron). Modelmark adds: a managed Postgres DB; the scheduled
+checker as a worker/cron (App Platform job or a droplet worker); separate
+deploys for api and admin subdomains; secrets management for admin auth.
+Favor managed Postgres + App Platform services over hand-rolled droplet
+config to reduce ops risk.
+
+**Database:** **PostgreSQL** (relational; the entities in §7 are
+relational and need integrity, versioning, review state). Single managed
+instance to start.
+
+**Auth:** **only for admin** (and any write path). Public site + API are
+read-only and need no user accounts. Admin needs real auth (email+password
+with 2FA, or an identity provider) — small trusted user set. **No end-user
+accounts anywhere** — preserves the privacy-clean posture.
+
+**What stays out of App Store v1:** the API, admin, ingestion jobs, and DB
+are all backend phases. v1 app keeps consuming the existing read endpoints.
+
+---
+
+## 9. Public / Private Data Boundary
+
+**Public website fields (per change):** lab, model, changeType, date,
+what-changed, why-it-matters, source link, verification state. Enough to be
+useful and trustworthy.
+
+**Public web timeline limits:** show a bounded window (e.g. recent N
+months, as the app already windows the timeline) and paginate history;
+avoid serving the entire structured corpus in one payload.
+
+**API-only fields:** internal ids, sourceTier internals, confidence scores,
+review metadata, raw signal provenance, anything that represents curation
+effort. The commercial value is the *structured, verified corpus* — gate it.
+
+**Scraping risk:** a public site that renders full structured JSON for the
+whole dataset is trivially scraped. Mitigate: server-render summaries, do
+**not** expose a public unauthenticated "dump everything" JSON, paginate,
+and put the full structured feed behind the API with keys.
+
+**Rate-limit expectations:** public API keyed + rate-limited per key;
+generous read cache/CDN in front; the website's own data access can use an
+internal, higher-limit path.
+
+**Commercial API protection:** API keys, tiered limits, terms of use; the
+full historical structured dataset and trust metadata are the paid product
+— never fully exposed unauthenticated.
+
+**Should NOT be exposed as full structured JSON publicly:** the complete
+`model_changes` corpus with all trust metadata; the source registry;
+review-queue contents; candidate/raw-signal data (today's
+`update-candidates.json` is already private — keep that discipline).
+
+---
+
+## 10. App Store v1 Safety Recommendation
+
+**Recommendation: ship a v1 that is honest about being a curated record.**
+The app is already read-only, private, and calm — safe to ship — provided
+the copy does not over-promise "automatic, source-verified" tracking that
+the backend doesn't yet guarantee.
+
+| Item | Classification |
+|---|---|
+| Models / Labs / Definitions (curated, via API) | **Safe to ship** (current approach) |
+| Release timeline (derived on-device) | **Safe to ship** |
+| Offline cache + cached/offline notices | **Safe to ship** |
+| Lab favourites, Lab Activity (local) | **Safe to ship** |
+| Tune Radar / Why it matters (on-device) | **Safe to ship** (rename copy later) |
+| Widget (App Group snapshot) | **Safe with current snapshot approach** |
+| Local daily reminder | **Safe with current approach** |
+| Update-status "checked" badge | **Safe**, but copy must not imply automated *catalog* updates |
+| **News tab** | **Needs better trust copy first** — reframe to source-backed "Updates", or clearly label non-official items; biggest v1 positioning risk |
+| Modelmark name + "source-backed record" claims | **Needs trust copy aligned to reality**; full claim **waits for backend** |
+| Public API / admin / ingestion | **Wait for API/admin phase** — not in app v1 |
+| "Automatically tracked / verified" language | **Should not be included** until the backend exists |
+
+**Bottom line:** v1 can ship under Modelmark branding **if** the in-app
+language describes a *curated, source-aware* record (truthful today) rather
+than an *automated, verified* pipeline (not true yet). The rename itself is
+safe; the over-claim is the only App Store trust hazard.
+
+---
+
+## 11. Risks and Unknowns
+
+- **Over-claiming trust:** the single biggest risk. Branding Modelmark as
+  "source-backed/verified" while data is hand-curated and news has a
+  non-official fallback could mislead users and reviewers. Mitigate with
+  honest v1 copy + the §6 methodology before backend.
+- **Bundle-id / App Group rename timing:** changing the bundle id after an
+  App Store record exists is disruptive; the App Group rename risks widget
+  data continuity. Must be a deliberate pre-submission sprint.
+- **News-tab identity:** unclear whether News stays (reframed as Updates),
+  gets folded into a change record, or is cut for v1. Product decision
+  needed.
+- **API contract coupling:** renaming `NewsItem`/`RadarModel` types means
+  coordinated changes across the web API and the app. Cannot be an
+  app-only sprint.
+- **No backend exists yet:** DB, ingestion, review queue, admin are all
+  greenfield; estimates here are architectural, not validated by a spike.
+- **Extractor trust:** any future automated extraction must never
+  auto-publish; hallucination risk is real and must stay human-gated.
+- **Source fragility / legal:** scraping official sources may hit ToS or
+  brittle HTML; RSS/official APIs preferred; review per-source.
+- **Domain assumption:** `modelmark.ai` availability/ownership is assumed,
+  not verified in this audit.
+- **Container caveat (process):** this audit ran in a cloud mirror with no
+  Xcode; findings are from source inspection, not a build.
+
+---
+
+## 12. Recommended Sprint Sequence
+
+1. **P11-S01 (this):** audit + plan. ✅
+2. **P11-S02 — Methodology & trust spec lock:** finalize §6 into a
+   committed `docs/methodology.md`; decide News-tab fate; lock the trust
+   quartet as the data contract. *Docs only.*
+3. **P11-S03 — App copy/trust alignment (no rename):** adjust in-app
+   language so v1 is honest (no over-claim), reframe News→Updates copy if
+   kept. *App copy only, still RMR-named.*
+4. **P11-S04 — Identity rename sprint:** RMR/Radar → Modelmark across
+   target, bundle id, App Group, widget kind, copy, docs, tests. One
+   deliberate sprint, pre-submission. *Mechanical, high-care.*
+5. **P11-S05 — Data model: `ModelChange` + trust fields (web/API + app):**
+   introduce the change entity and trust metadata in the API contract and
+   app decoders. *Coordinated web+app.*
+6. **P11-S06 — Backend foundation:** managed Postgres + schema (§7), seed
+   import from curated TS data.
+7. **P11-S07 — Ingestion: source registry + scheduled checker + change
+   detector.**
+8. **P11-S08 — Review queue + admin (admin.modelmark.ai).**
+9. **P11-S09 — Public API hardening (keys, limits, boundary §9).**
+10. **P11-S10 — Web app (modelmark.ai) on the published DB.**
+11. **P11-S11 — App Store submission under Modelmark.**
+
+(Backend phases 6–9 can precede or follow the App Store submission of a
+curated v1; the app does not block on them.)
+
+## 13. Recommended Immediate Next Sprint
+
+**P11-S02 — Methodology & Trust Spec Lock (docs only).**
+
+Why this next, and why it's safe:
+- It is **docs-only**, zero code risk, and unblocks every later decision.
+- It forces the two product decisions that gate everything else: the
+  **News-tab fate** and the **trust quartet as the data contract**.
+- It produces the methodology page that any "source-backed" claim depends
+  on — required before App Store copy can honestly use Modelmark framing.
+
+Concretely P11-S02 should: commit `docs/methodology.md` from §6; record the
+News-tab decision; define `ModelChange` fields on paper (no code); and
+specify the honest v1 copy boundaries (what the app may and may not claim).
+No rename, no backend, no app code.
+
+---
+
+*End of P11-S01. Docs-only. No app code, UI copy, backend, API, admin,
+schema, automation, or deployment configuration was changed.*

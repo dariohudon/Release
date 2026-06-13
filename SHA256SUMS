@@ -35,6 +35,7 @@ c08982d0c2803e7ae2ac257311c8ffdd5270ae2cffc8dbd52404c53b12b55233  0026-Fix-Phase
 57c0ee822cedc48a6a61b0917c2c7f6beb728996fa0545a766412d53dfe9b6ff  0031-Polish-News-spacing-and-add-native-share.patch
 a45bc6f5a20f4996ac2590a02fc60bc63cbefba9801a9efaaf4f4d4797e63397  0032-Give-News-Open-and-Share-independent-hit-targets.patch
 89c04be574611ce4e44722cac6f747ec939ebabfbcd84e35b7c41e80e576e988  0033-Add-scrollable-six-month-timeline-viewport-with-year.patch
+e6e6da3164dcbf608ae2527cfb955cb1e7a12c8963a14686d2e1755cb1fd78c8  0034-Add-P11-S01-Modelmark-scope-audit-docs-only.patch
 ed6c92f60f044e1f46857d9f49e98b5b07fb05bf583afe68c47b76565add73ef  release-model-radar-ios.tar.gz
 582824c7ff6137518686bb7049386efa13b915ae59e19555050df65151ecbfa3  project.pbxproj
 6262105229a132e4f1582b251441bd5e9a683aa5a8a7db6ab87c62956942ed48  phase-6c-docs/APPLY.md
@@ -88,3 +89,5 @@ f4dc5070cf073864205c10765d41eecd79497cb173bd5063ac064c9263099293  phase-10d-file
 da986756dd817cfa705dde083aa1e65e0a188101c748c0ea22ecbd4062652e19  phase-10d-files/app-store-readiness.md
 edc822326ef8db09c3eb77b8f95c246719c92c0fa34df4004960043fa03bdfa8  phase-10e-files/ReleaseTimelineView.swift
 67d2abd73fc46accd5b2176b1b965ca8917dd012f780b82c47ec96dea22bc117  phase-10e-files/TimelineWindowTests.swift
+73e97c1bc84e83decdc1457427141094f96b8cee5cb8143f2d047d1221ec2a5d  phase-11-files/010-current-operational-state.md
+5b0a8d7095f5f5ce323f9f482c6dcb357ff9c62f2b4f2bc2f0cde43df65c92dc  phase-11-files/p11-s01-current-data-reality-modelmark-scope-audit.md
