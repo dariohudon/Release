@@ -369,7 +369,12 @@ struct NewsRow: View {
             }
 
             if let url = URL(string: item.url) {
-                HStack(spacing: 18) {
+                // Open and Share are INDEPENDENT controls. In a List row,
+                // multiple interactive elements otherwise collapse into one
+                // cell-level tap that fires the primary control (Open)
+                // first — so .borderless gives each its own hit target, and
+                // an explicit contentShape keeps the tap areas distinct.
+                HStack(spacing: 22) {
                     Link(destination: url) {
                         HStack(spacing: 4) {
                             Text("Open")
@@ -377,10 +382,10 @@ struct NewsRow: View {
                         }
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.good)
+                        .contentShape(Rectangle())
                     }
-                    // Native iOS share of the article link; the article
-                    // title rides along as the share-sheet preview. Does
-                    // not replace "Open"; shares nothing private.
+                    .buttonStyle(.borderless)
+
                     ShareLink(item: url, preview: SharePreview(item.title)) {
                         HStack(spacing: 4) {
                             Image(systemName: "square.and.arrow.up")
@@ -388,8 +393,12 @@ struct NewsRow: View {
                         }
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.muted)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.borderless)
                     .accessibilityLabel("Share \(item.title)")
+
+                    Spacer(minLength: 0)
                 }
                 .padding(.top, 2)
             }

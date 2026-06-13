@@ -33,6 +33,7 @@ c08982d0c2803e7ae2ac257311c8ffdd5270ae2cffc8dbd52404c53b12b55233  0026-Fix-Phase
 5f5ddcd3a052c96b1c0024f1e244693b5627c14122f0dd35ea6e677433247cfb  0029-Treat-stale-activity-lab-ids-as-invalid-in-related-s.patch
 829ce696220b1b5a0b3e5b44e42ad4e701c75a4933d0781a56cea4ff329e0c9b  0030-Use-neutral-copy-for-stale-lab-names-in-activity-row.patch
 57c0ee822cedc48a6a61b0917c2c7f6beb728996fa0545a766412d53dfe9b6ff  0031-Polish-News-spacing-and-add-native-share.patch
+a45bc6f5a20f4996ac2590a02fc60bc63cbefba9801a9efaaf4f4d4797e63397  0032-Give-News-Open-and-Share-independent-hit-targets.patch
 ed6c92f60f044e1f46857d9f49e98b5b07fb05bf583afe68c47b76565add73ef  release-model-radar-ios.tar.gz
 582824c7ff6137518686bb7049386efa13b915ae59e19555050df65151ecbfa3  project.pbxproj
 6262105229a132e4f1582b251441bd5e9a683aa5a8a7db6ab87c62956942ed48  phase-6c-docs/APPLY.md
@@ -82,5 +83,5 @@ e373418c1ccf39e8a6bee182339feedf9c5d948e645224974f66a0e0f66cb4bf  phase-10c-file
 e41bb3a6550c3896627f2a1858a39c4568272a96a7d3dec147b77ce632b7e76b  phase-10c-files/NewsView.swift
 75dccb83686b12774e8291dbd50dd8777f6ed62a41baf296c6511bfedbe1953c  phase-10c-files/ReleaseModelRadarApp.swift
 70addad0c2c764165571345d3abeb273eff6370bd4848c72a5c730bc6e45eb8e  phase-10d-files/FavoriteLabNewsTests.swift
-ace6399c309ae030980b509896a98321ccf12ce8a0e6c8a34c0d921c09b733b7  phase-10d-files/NewsView.swift
+f4dc5070cf073864205c10765d41eecd79497cb173bd5063ac064c9263099293  phase-10d-files/NewsView.swift
 da986756dd817cfa705dde083aa1e65e0a188101c748c0ea22ecbd4062652e19  phase-10d-files/app-store-readiness.md
