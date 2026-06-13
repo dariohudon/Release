@@ -1,0 +1,188 @@
+From dc3c80d05cdd1049295bb34f2e742a4171ae3f03 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 13 Jun 2026 05:24:28 +0000
+Subject: [PATCH] Add scrollable six-month timeline viewport with year context
+
+---
+ .../Components/ReleaseTimelineView.swift      | 80 ++++++++++++++-----
+ .../TimelineWindowTests.swift                 | 42 ++++++++++
+ 2 files changed, 103 insertions(+), 19 deletions(-)
+ create mode 100644 ReleaseModelRadarTests/TimelineWindowTests.swift
+
+diff --git a/ReleaseModelRadar/Components/ReleaseTimelineView.swift b/ReleaseModelRadar/Components/ReleaseTimelineView.swift
+index 4101296..74f2e3a 100644
+--- a/ReleaseModelRadar/Components/ReleaseTimelineView.swift
++++ b/ReleaseModelRadar/Components/ReleaseTimelineView.swift
+@@ -9,14 +9,11 @@ struct ReleaseTimelineView: View {
+     let labColors: [String: String]
+     let onSelect: (RadarModel) -> Void
+ 
+-    // Same window as the web timeline
+-    private static let pastDays: Double = 240
+-    private static let futureDays: Double = 160
+-    private static let daySeconds: Double = 86_400
+-
+-    private let plotHeight: CGFloat = 104
+-    private let trackY: CGFloat = 66
+-    private let lanes: [CGFloat] = [-20, 0, -40] // vertical stagger keeps close dots tappable
++    // One-year window, six months either side of today. About six months
++    // are visible at once; the rest is reached by scrolling horizontally.
++    private let plotHeight: CGFloat = 128
++    private let trackY: CGFloat = 80
++    private let lanes: [CGFloat] = [-22, 0, -44] // vertical stagger keeps close dots tappable
+ 
+     // ── Geometry models ───────────────────────────────────────────────────────
+ 
+@@ -34,9 +31,13 @@ struct ReleaseTimelineView: View {
+         var id: Double { fraction }
+     }
+ 
+-    private var windowStart: Date { Date(timeIntervalSinceNow: -Self.pastDays * Self.daySeconds) }
+-    private var windowEnd: Date { Date(timeIntervalSinceNow: Self.futureDays * Self.daySeconds) }
+-    private var todayFraction: Double { Self.pastDays / (Self.pastDays + Self.futureDays) }
++    private var windowStart: Date { TimelineWindow.bounds(now: Date()).start }
++    private var windowEnd: Date { TimelineWindow.bounds(now: Date()).end }
++    private var todayFraction: Double {
++        let start = windowStart, end = windowEnd
++        let total = end.timeIntervalSince(start)
++        return total > 0 ? Date().timeIntervalSince(start) / total : 0.5
++    }
+ 
+     private var dots: [Dot] {
+         let start = windowStart.timeIntervalSince1970
+@@ -69,13 +70,16 @@ struct ReleaseTimelineView: View {
+             cursor = calendar.date(byAdding: .month, value: 1, to: cursor) ?? end
+         }
+         let span = end.timeIntervalSince(start)
+-        let formatter = DateFormatter()
+-        formatter.dateFormat = "MMM"
++        let monthFormatter = DateFormatter()
++        monthFormatter.dateFormat = "MMM"
++        let yearBoundaryFormatter = DateFormatter()
++        yearBoundaryFormatter.dateFormat = "MMM ''yy" // e.g. Jan '26
+         var ticks: [MonthTick] = []
+         while cursor < end {
++            let isJanuary = calendar.component(.month, from: cursor) == 1
+             ticks.append(MonthTick(
+                 fraction: cursor.timeIntervalSince(start) / span,
+-                label: formatter.string(from: cursor)
++                label: (isJanuary ? yearBoundaryFormatter : monthFormatter).string(from: cursor)
+             ))
+             guard let next = calendar.date(byAdding: .month, value: 1, to: cursor) else { break }
+             cursor = next
+@@ -125,17 +129,26 @@ struct ReleaseTimelineView: View {
+     // ── View ──────────────────────────────────────────────────────────────────
+ 
+     var body: some View {
+-        VStack(alignment: .leading, spacing: 6) {
+-            HStack {
++        VStack(alignment: .leading, spacing: 8) {
++            HStack(alignment: .firstTextBaseline) {
+                 Text("RELEASE TIMELINE")
+                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                     .tracking(1.4)
+                     .foregroundStyle(Theme.dim)
+-                Spacer()
+-                legend
++                Spacer(minLength: 8)
++                Text(TimelineWindow.rangeLabel(now: Date()))
++                    .font(.system(size: 9.5, design: .monospaced))
++                    .foregroundStyle(Theme.dim)
+             }
++            legend // own row so the labels never clip against the title
+             GeometryReader { geo in
+-                plot(width: geo.size.width)
++                let viewportWidth = max(geo.size.width, 1)
++                let contentWidth = viewportWidth * TimelineWindow.contentScale
++                ScrollView(.horizontal, showsIndicators: false) {
++                    plot(width: contentWidth)
++                        .frame(width: contentWidth, height: plotHeight)
++                }
++                .defaultScrollAnchor(.center) // start centred on today
+             }
+             .frame(height: plotHeight)
+         }
+@@ -244,3 +257,32 @@ struct ReleaseTimelineView: View {
+         .foregroundStyle(Theme.dim)
+     }
+ }
++
++/// Pure, testable timeline window math (Phase 10E). The timeline spans one
++/// year — six months either side of "now" — and shows about six of those
++/// months in the viewport, the rest reached by horizontal scrolling.
++enum TimelineWindow {
++    static let totalMonths = 12
++    static let visibleMonths = 6
++
++    /// Content is this many times wider than the viewport, so ~`visibleMonths`
++    /// of `totalMonths` are on screen at once.
++    static var contentScale: CGFloat { CGFloat(totalMonths) / CGFloat(visibleMonths) }
++
++    /// Six months before and after `now` → a full one-year window.
++    static func bounds(now: Date, calendar: Calendar = Calendar(identifier: .gregorian)) -> (start: Date, end: Date) {
++        let half = totalMonths / 2
++        let start = calendar.date(byAdding: .month, value: -half, to: now) ?? now
++        let end = calendar.date(byAdding: .month, value: half, to: now) ?? now
++        return (start, end)
++    }
++
++    /// Compact year context for the header, e.g. "Dec 2025 – Dec 2026".
++    static func rangeLabel(now: Date, calendar: Calendar = Calendar(identifier: .gregorian)) -> String {
++        let (start, end) = bounds(now: now, calendar: calendar)
++        let formatter = DateFormatter()
++        formatter.calendar = calendar
++        formatter.dateFormat = "MMM yyyy"
++        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
++    }
++}
+diff --git a/ReleaseModelRadarTests/TimelineWindowTests.swift b/ReleaseModelRadarTests/TimelineWindowTests.swift
+new file mode 100644
+index 0000000..2500cfa
+--- /dev/null
++++ b/ReleaseModelRadarTests/TimelineWindowTests.swift
+@@ -0,0 +1,42 @@
++import XCTest
++@testable import ReleaseModelRadar
++
++/// Phase 10E: the timeline window is a pure helper, so its range/viewport
++/// math is unit-tested directly (no fragile UI snapshotting).
++final class TimelineWindowTests: XCTestCase {
++
++    private let calendar = Calendar(identifier: .gregorian)
++
++    private func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
++        calendar.date(from: DateComponents(year: year, month: month, day: day))!
++    }
++
++    func test_showsSixOfTwelveMonths() {
++        XCTAssertEqual(TimelineWindow.totalMonths, 12, "total range is one full year")
++        XCTAssertEqual(TimelineWindow.visibleMonths, 6, "viewport shows about six months")
++        XCTAssertEqual(TimelineWindow.contentScale, 2, accuracy: 0.0001,
++                       "content is twice the viewport width → half (6/12) visible at once")
++    }
++
++    func test_boundsSpanExactlyTwelveMonths() {
++        let (start, end) = TimelineWindow.bounds(now: date(2026, 6, 13), calendar: calendar)
++        let months = calendar.dateComponents([.month], from: start, to: end).month
++        XCTAssertEqual(months, 12, "the scrollable range never exceeds one year")
++    }
++
++    func test_boundsAreSixMonthsEitherSideOfNow() {
++        let now = date(2026, 6, 13)
++        let (start, end) = TimelineWindow.bounds(now: now, calendar: calendar)
++        XCTAssertEqual(start, date(2025, 12, 13))
++        XCTAssertEqual(end, date(2026, 12, 13))
++        XCTAssertLessThan(start, now)
++        XCTAssertGreaterThan(end, now)
++    }
++
++    func test_rangeLabelCarriesYearContext() {
++        let label = TimelineWindow.rangeLabel(now: date(2026, 6, 13), calendar: calendar)
++        XCTAssertTrue(label.contains("2025"), label)
++        XCTAssertTrue(label.contains("2026"), label)
++        XCTAssertTrue(label.contains("–"), "shows a from–to range, not a single month: \(label)")
++    }
++}
+-- 
+2.43.0
+
