@@ -1,0 +1,475 @@
+From fdca2f87ad97cb932109a3660016a0f9974b2e29 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 13 Jun 2026 08:02:45 +0000
+Subject: [PATCH] Add P11-S03 product positioning lock (docs only)
+
+---
+ .../p11-s03-product-positioning-lock.md       | 184 ++++++++++++++
+ docs/positioning.md                           | 236 ++++++++++++++++++
+ docs/state/010-current-operational-state.md   |  19 ++
+ 3 files changed, 439 insertions(+)
+ create mode 100644 docs/phase-11/p11-s03-product-positioning-lock.md
+ create mode 100644 docs/positioning.md
+
+diff --git a/docs/phase-11/p11-s03-product-positioning-lock.md b/docs/phase-11/p11-s03-product-positioning-lock.md
+new file mode 100644
+index 0000000..b5402c6
+--- /dev/null
++++ b/docs/phase-11/p11-s03-product-positioning-lock.md
+@@ -0,0 +1,184 @@
++# P11-S03 — Product Positioning Lock
++
++Phase 11 — Modelmark Identity & Automation Architecture
++Sprint P11-S03 · docs-only · no app code changed.
++Baseline: `phase-11-s02-methodology-trust-spec-lock`.
++
++---
++
++## 1. Executive Summary
++
++This sprint locks **product positioning** for Modelmark before any app copy,
++rename, App Store metadata, website copy, API claim, or backend work. The
++deliverable is `docs/positioning.md` (the standing positioning reference)
++plus this report.
++
++The positioning is deliberately **calm and honest about today's
++hand-curated, read-only reality**. It fixes the category
++(**model-change intelligence record, not a news app**), the one-sentence
++positioning, the is/is-not list, approved vs banned language, and — most
++importantly — a clean split between the **v1 claim** (safe today) and the
++**future claim** (only after the backend/trust pipeline exists). It also
++locks the **"source-aware" (now) vs "source-backed" (future)** wording rule
++and the **News→Updates** positioning. Nothing is implemented.
++
++## 2. Positioning Lock
++
++- **One-sentence:** "Modelmark is a calm, source-aware record of what
++  changed across AI models — and whether you should care."
++- **Record, not feed** is the core stance.
++- **v1 claim (safe today):** "A calm, curated, source-aware timeline of AI
++  model releases and changes, with plain-language summaries of what changed
++  and why it might matter."
++- **Future claim (after backend):** "A source-backed model-change record
++  with reviewable trust metadata, historical records, and structured API
++  access."
++- **Wording rule:** use **source-aware** now; reserve strict
++  **source-backed** for the future (qualified only until then).
++
++## 3. Category Definition
++
++**Model-change intelligence record — not a news app.** Closer to a
++changelog / system-of-record for AI models than to media. It records
++changes (facts) and adds a thin calm "why it matters" layer. It competes
++with the chore of manually tracking many labs, not with news outlets.
++
++## 4. What Modelmark Is
++
++Structured model release/change record · source-aware timeline of AI model
++changes · calm explanation layer · future data product (app, web, API,
++admin).
++
++## 5. What Modelmark Is Not
++
++Not an AI news app · not a newsfeed · not a blog · not a hype tracker · not
++a best-model leaderboard · not an AI tool directory · not an AI agent
++marketplace.
++
++## 6. Primary User Question
++
++**"What changed across AI models, and should I care?"**
++
++## 7. App User Positioning
++
++A busy practitioner/decision-maker who wants to know *what changed and
++whether to care* — calmly, privately, without doom-scrolling. Values trust,
++brevity, privacy (no account, no tracking; on-device personalization). The
++v1 sentence speaks to this person.
++
++## 8. Future API / Data User Positioning
++
++Developers, analysts, and businesses wanting **maintained, structured,
++source-trailed historical change data** via API/exports/webhooks with
++commercial usage rights. The future claim speaks to this person — and must
++**not** be implied as available today. Anything API-facing is roadmap until
++the API phase (P11-S09).
++
++## 9. Approved Language
++
++calm · curated · source-aware · read-only · privacy-conscious · model
++release timeline · model changes / updates · plain-language summaries ·
++"what changed and why it might matter" · record · selective · on-device
++personalization · "the labs you follow".
++
++## 10. Risky / Banned Language
++
++**Banned in v1 (overclaims today):** automated · automatically tracks ·
++fully verified · verified · comprehensive · every model / complete ·
++real-time / live · database-backed · API-ready / "our API" · bare
++"source-backed".
++
++**Banned always (off-brand):** news · newsfeed · headlines · stories ·
++trending · hype · breaking · "best model" · leaderboard · ranking ·
++directory · marketplace · superlatives · urgency.
++
++## 11. News / Updates Positioning
++
++**Modelmark does not position around "news."** The future surface is
++**"Updates" (or "Changes")** — source-aware model/lab changes, framed as
++*"recent changes from the labs you follow,"* never *"the latest AI news."*
++The dividing line: an **update** answers the trust quartet (source, date,
++what changed, why it matters); a **headline** does not. This is consistent
++with P11-S02's News decision (destination = fold into structured change
++records, named "Updates"; v1 bridge = keep only with clear authority
++labeling, else remove).
++
++## 12. App Store v1 Positioning Guidance
++
++- Lead with the v1 sentence; emphasize calm, curated, privacy-conscious,
++  read-only, no account.
++- Describe the timeline + "what changed / why it might matter".
++- **Avoid** automation/verification/completeness/real-time/API claims.
++- Updates surface (if shipped) = "recent source-aware changes from labs you
++  follow", clearly distinct from "news".
++- Factual category keywords only (AI models, releases, changes, timeline);
++  not "news"/"leaderboard".
++
++## 13. Website / API Positioning Guidance
++
++- **Website:** same hero positioning; the public web timeline is a bounded,
++  calm view (recent window + paginated history, per P11-S01 §9), not a full
++  data dump; roadmap surfaces labeled "coming"; link to `methodology.md`.
++- **API/data product (future):** position around maintained structured
++  data, source trails, historical records, change metadata, exports,
++  webhooks, commercial usage rights. **Do not imply it exists today** —
++  future tense only. Protect the curated corpus per the public/private
++  boundary.
++
++## 14. Risks and Unknowns
++
++- **Live copy still overclaims** until P11-S04 aligns shipped strings; this
++  doc reduces the risk by defining the language, but changes nothing yet.
++- **"source-aware" vs "source-backed" discipline** must hold across app,
++  store, and web simultaneously; one stray "verified" undermines the brand.
++- **Updates implementation gap:** the positioning assumes the News→Updates
++  shift; the actual copy/data work is later (P11-S04 copy; data model +
++  backend for the structured version).
++- **API positioning temptation:** marketing the future API as present is the
++  classic overclaim; guard with future tense.
++- **Process caveat:** authored in a cloud mirror, no Xcode; docs-only, but
++  the branch must be applied/pushed on the Mac to be reviewable.
++
++## 15. Recommended Sprint Sequence
++
++1. P11-S01 — current data reality & scope audit. ✅ (locked)
++2. P11-S02 — methodology & trust spec lock. ✅ (locked)
++3. **P11-S03 (this)** — product positioning lock. ✅
++4. **P11-S04 — App Copy / Trust Alignment (app copy only, no rename):**
++   bring shipped strings within the approved/banned language + methodology
++   §9 boundaries; apply the Updates v1 decision at copy level.
++5. P11-S05 — Identity rename (RMR/Radar → Modelmark): target, bundle id,
++   App Group, widget kind, copy, docs, tests. One deliberate pre-submission
++   sprint.
++6. P11-S06 — Data model: `ModelChange` + trust quartet/metadata (web/API +
++   app, coordinated).
++7. P11-S07 — Backend foundation (managed Postgres + schema + seed import).
++8. P11-S08 — Ingestion (source registry, scheduled checker, change detector).
++9. P11-S09 — Review queue + admin.
++10. P11-S10 — Public API hardening (keys, limits, boundary).
++11. P11-S11 — Web app on published DB.
++12. P11-S12 — App Store submission under Modelmark.
++
++(Sequence numbering past S04 is indicative; backend phases may reorder.)
++
++## 16. Recommended Immediate Next Sprint
++
++**P11-S04 — App Copy / Trust Alignment (app copy only, no rename).**
++
++Why next, why safe:
++- Positioning and methodology now exist, so shipped copy can be measured
++  against concrete approved/banned lists and §9 boundaries.
++- It removes the **live overclaim risk** in user-facing strings *before* the
++  rename, so the language is honest regardless of product name.
++- It applies the **Updates** decision at the copy level (bridge D labeling,
++  or removal C) **without** touching the data model, backend, or identity.
++
++Scope guardrails for P11-S04: change **only** user-facing strings and the
++Updates surface's authority presentation; **no rename**, no type/enum
++renames, no API/backend/schema. Contained and reviewable.
++
++---
++
++*End of P11-S03. Docs-only. No app code, UI copy, rename, bundle/App Group/
++widget/target/scheme/test/project change, backend, API, admin, schema,
++automation, or deployment configuration was changed.*
+diff --git a/docs/positioning.md b/docs/positioning.md
+new file mode 100644
+index 0000000..171e496
+--- /dev/null
++++ b/docs/positioning.md
+@@ -0,0 +1,236 @@
++# Modelmark — Product Positioning
++
++*Status: standing positioning reference (Phase 11, P11-S03). This document
++is the source of truth for how Modelmark is described — in the app, on the
++App Store, on the website, and around the future API. It sits alongside
++`docs/methodology.md` (the trust contract) and inherits its honesty rules.*
++
++*Honesty anchor: today the catalog is **hand-curated** and the app is a
++**read-only client**. This document separates what Modelmark may claim
++**now (v1)** from what it may claim **later (after the backend/trust
++pipeline exists)**. When unsure, use the v1 language.*
++
++---
++
++## One-sentence positioning
++
++**Modelmark is a calm, source-aware record of what changed across AI
++models — and whether you should care.**
++
++## Short positioning paragraph
++
++AI models change constantly — new versions, capability and pricing shifts,
++availability changes, deprecations — and most of it arrives as hype,
++threads, and headlines. Modelmark is the calm alternative: a curated,
++source-aware timeline of model releases and changes, each with a
++plain-language note on what changed and why it might matter. It is a
++**record, not a feed** — built to be trusted and skimmed, not to chase
++engagement.
++
++## Primary user question
++
++**"What changed across AI models, and should I care?"**
++
++---
++
++## What Modelmark is
++
++- A **structured model release/change record**.
++- A **source-aware timeline** of AI model changes.
++- A **calm explanation layer** over those changes.
++- A **future data product** with app, web, API, and admin surfaces.
++
++## What Modelmark is not
++
++- Not an AI **news app**.
++- Not a **newsfeed**.
++- Not a **blog**.
++- Not a **hype tracker**.
++- Not a **best-model leaderboard**.
++- Not an **AI tool directory**.
++- Not an **AI agent marketplace**.
++
++---
++
++## Category definition
++
++**Modelmark is a model-change intelligence record — not a news app.**
++
++The category is closer to a *changelog / system-of-record for AI models*
++than to media. "Intelligence record" captures both halves: it records
++*changes* (facts), and it adds a thin layer of *intelligence* (calm "why it
++matters"). It competes with the effort of manually tracking many labs'
++announcements — not with news outlets.
++
++---
++
++## Current v1 positioning (safe today)
++
++> **"A calm, curated, source-aware timeline of AI model releases and
++> changes, with plain-language summaries of what changed and why it might
++> matter."**
++
++True today because: entries are hand-written by a person (**curated**),
++written from sources and cite them where shown (**source-aware**),
++presented as a **timeline**, with calm summaries. The app is **read-only**
++and **privacy-conscious** (no account, no tracking).
++
++## Future positioning (only after backend/trust pipeline exists)
++
++> **"A source-backed model-change record with reviewable trust metadata,
++> historical records, and structured API access."**
++
++Claimable only once the published database, review queue, and API exist
++(later phases). Until then, the strict words below stay reserved.
++
++---
++
++## "Source-aware" vs "source-backed"
++
++- **Use "source-aware" now.** It honestly says entries are written from
++  sources and reference them, without promising a per-record,
++  machine-verifiable source trail.
++- **Reserve "source-backed" (strict)** for after the trust-quartet data
++  contract and review pipeline exist, when every record carries a verifiable
++  source. Until then, only use it **qualified** — e.g. "written from
++  official sources" — never bare.
++- Rule of thumb: *aware* describes the editorial practice (true now);
++  *backed* describes a structural guarantee (future).
++
++## Talking about trust without overclaiming
++
++- Describe the **practice** ("we write from official sources first, and skip
++  rumours"), not a **guarantee** ("every item is verified").
++- Never imply **automation**, **completeness**, or **real-time** coverage.
++- It is fine — and on-brand — to say coverage is **selective and curated**.
++- Prefer "we aim to…" / "we don't…" over "we always…".
++
++## Talking about News/Updates without sounding like a newsfeed
++
++- **Do not position around "news."** No "AI news", "headlines", "stories",
++  "feed", "trending".
++- The future surface name is **"Updates"** (or "Changes") — meaning
++  **source-aware model/lab changes**, not general AI news.
++- Frame it as *"recent changes from the labs you follow,"* not *"the latest
++  AI news."*
++- A model/lab **update** answers the trust quartet (source, date, what
++  changed, why it matters); a **headline** does not — that's the line.
++
++---
++
++## Approved language
++
++calm · curated · source-aware · read-only · privacy-conscious · model
++release timeline · model **changes** / **updates** · plain-language
++summaries · "what changed and why it might matter" · record · selective ·
++on-device personalization · "the labs you follow".
++
++## Risky / banned language
++
++**Banned in v1** (overclaims today): automated · automatically tracks ·
++fully verified · verified · comprehensive · every model / complete ·
++real-time / live · database-backed · API-ready / "our API" · "source-backed"
++(bare/unqualified).
++
++**Banned always** (off-brand for the category): news · newsfeed · headlines
++· stories · trending · hype · breaking · "best model" · leaderboard ·
++ranking · "#1" · directory · marketplace · superlatives ("game-changing",
++"revolutionary") · urgency ("don't miss", "you need this").
++
++---
++
++## App Store positioning guidance (v1)
++
++- Lead with the v1 sentence above.
++- Emphasize **calm, curated, privacy-conscious, read-only, no account**.
++- Describe the timeline + plain-language "what changed / why it matters".
++- **Avoid** automation/verification/completeness/real-time/API claims.
++- If the Updates surface ships, describe it as "recent source-aware changes
++  from labs you follow", clearly distinct from "news".
++- Keywords may include factual category terms (AI models, releases, changes,
++  timeline) but **not** "news" or "leaderboard".
++
++## Website positioning guidance
++
++- Same one-sentence positioning as the hero.
++- The public web timeline is a **bounded, calm** view (recent window +
++  paginated history per the P11-S01 boundary), not a full data dump.
++- May describe the *direction* (web, API, admin) as roadmap, clearly labeled
++  "coming" — never as already shipped.
++- Link to `methodology.md` to make the trust practice legible.
++
++## API / data-product positioning guidance (future)
++
++- Position future API value around: **maintained structured data**,
++  **source trails**, **historical records**, **change metadata**,
++  **exports**, **webhooks**, and **commercial usage rights**.
++- **Do not imply the API exists today.** Anything API-facing is roadmap
++  until P11-S09. Use future tense and "planned/coming".
++- The commercial value is the *curated, verified, historical corpus* — not
++  raw scraping; protect it per the P11-S01 public/private boundary.
++
++---
++
++## Differentiators
++
++- **Record, not feed** — built to be trusted and skimmed, not to maximize
++  engagement.
++- **Calm and selective** — curated signal over volume.
++- **Trust quartet** — source, date, what changed, why it matters (the
++  future structural backbone).
++- **Privacy-conscious** — no account, no tracking; personalization on-device.
++- **Cross-lab** — one record across many labs, vs each lab's own blog.
++
++## Anti-positioning (what we deliberately are not, and why)
++
++- **Not a newsfeed** — feeds optimize for novelty/engagement; we optimize for
++  a trustworthy record.
++- **Not a leaderboard** — rankings invite hype and go stale; we record
++  changes, not verdicts.
++- **Not a directory/marketplace** — we don't list/sell tools or agents.
++- **Not a blog** — no opinion or think-pieces; facts + calm relevance only.
++
++---
++
++## Audience distinction
++
++- **App user (now):** a busy practitioner/decision-maker who wants to know
++  *what changed and whether to care*, calmly, without doom-scrolling. Values
++  trust, brevity, privacy. The v1 positioning speaks to this person.
++- **Future API / data user (later):** developers, analysts, and businesses
++  who want **maintained, structured, source-trailed historical change data**
++  via API/exports/webhooks, with commercial usage rights. The future
++  positioning speaks to this person — and must not be implied as available
++  yet.
++
++---
++
++## Product implications
++
++- The **Updates** direction (fold News into source-aware change records;
++  name "Updates") is the positioning-consistent path; "News" framing should
++  not persist. (Implementation deferred — see methodology §7 / P11-S02.)
++- "Best model"/ranking framing must be audited out of any guidance copy
++  (USE/WATCH/IGNORE stays a *usefulness* note, never a ranking).
++- The record/feed distinction should shape UI tone (calm, skimmable),
++  reinforcing the brand at the surface level.
++
++## Copy implications for P11-S04 (App Copy / Trust Alignment)
++
++- Bring all shipped strings within the **Approved / Banned** lists above and
++  the methodology §9 claim boundaries — **without** renaming RMR→Modelmark
++  (that's P11-S05's identity sprint, sequenced after).
++- Apply the Updates decision at the **copy level**: lead with official
++  sources, label non-official as less authoritative (bridge **D**), or
++  remove the surface from v1 (**C**) if honest labeling isn't clean.
++- Remove/qualify any current wording implying automation, verification,
++  completeness, real-time, or an existing API.
++- Keep "radar"/"Tune Radar" wording for now if it's entangled with identity;
++  flag it for the rename sprint rather than half-renaming here.
++
++---
++
++*This positioning is intentionally conservative and honest. It lets
++Modelmark sound like what it is today — a calm, curated, source-aware record
++— while reserving the stronger "source-backed / verified / API" language for
++when the backend makes it true.*
+diff --git a/docs/state/010-current-operational-state.md b/docs/state/010-current-operational-state.md
+index 363e9f4..4e12834 100644
+--- a/docs/state/010-current-operational-state.md
++++ b/docs/state/010-current-operational-state.md
+@@ -43,3 +43,22 @@ not rewrite history.
+   **C** (remove from v1) if honest labeling isn't clean.
+ - **Recommended next sprint:** **P11-S03 — App Copy / Trust Alignment**
+   (app copy only, no rename).
++
++## P11-S03 — Product Positioning Lock — COMPLETED
++
++- **Status:** completed (docs only; no app code changed).
++- **Created:** `docs/positioning.md` (standing positioning reference) and
++  `docs/phase-11/p11-s03-product-positioning-lock.md` (sprint report).
++- **Category locked:** model-change **intelligence record, not a news app**.
++- **v1 positioning (safe today):** "A calm, curated, source-aware timeline
++  of AI model releases and changes, with plain-language summaries of what
++  changed and why it might matter."
++- **Future positioning (after backend):** "A source-backed model-change
++  record with reviewable trust metadata, historical records, and structured
++  API access."
++- **Wording rule:** use **source-aware** now; reserve strict
++  **source-backed** for the future (qualified only until then).
++- **News/Updates:** do not position around "news"; future surface is
++  **"Updates"/"Changes"** (source-aware model/lab changes, not headlines).
++- **Recommended next sprint:** **P11-S04 — App Copy / Trust Alignment**
++  (app copy only, no rename).
+-- 
+2.43.0
+

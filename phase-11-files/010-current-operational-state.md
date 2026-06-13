@@ -43,3 +43,22 @@ not rewrite history.
   **C** (remove from v1) if honest labeling isn't clean.
 - **Recommended next sprint:** **P11-S03 — App Copy / Trust Alignment**
   (app copy only, no rename).
+
+## P11-S03 — Product Positioning Lock — COMPLETED
+
+- **Status:** completed (docs only; no app code changed).
+- **Created:** `docs/positioning.md` (standing positioning reference) and
+  `docs/phase-11/p11-s03-product-positioning-lock.md` (sprint report).
+- **Category locked:** model-change **intelligence record, not a news app**.
+- **v1 positioning (safe today):** "A calm, curated, source-aware timeline
+  of AI model releases and changes, with plain-language summaries of what
+  changed and why it might matter."
+- **Future positioning (after backend):** "A source-backed model-change
+  record with reviewable trust metadata, historical records, and structured
+  API access."
+- **Wording rule:** use **source-aware** now; reserve strict
+  **source-backed** for the future (qualified only until then).
+- **News/Updates:** do not position around "news"; future surface is
+  **"Updates"/"Changes"** (source-aware model/lab changes, not headlines).
+- **Recommended next sprint:** **P11-S04 — App Copy / Trust Alignment**
+  (app copy only, no rename).
